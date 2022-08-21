@@ -17,7 +17,7 @@ func (w *Window) AvgTime() time.Duration {
 	return w.TotalTime / time.Duration(w.TotalCnt)
 }
 
-// 基于滑动窗口的qps统计
+// 基于滑动窗口的QPS统计
 type QPS struct {
 	windowCnt int64            // 窗口数量
 	windows   map[int64]Window // 窗口
