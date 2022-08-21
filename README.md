@@ -4,6 +4,9 @@
 # cmd
 命令执行
 
+# consistenthash
+一致性哈希
+
 # container
 泛型容器
 
