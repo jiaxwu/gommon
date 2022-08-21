@@ -4,11 +4,20 @@
 # cmd
 命令执行
 
+# container
+泛型容器
+
 # conv 
 类型转换
 
 # env
 获取环境变量的工具
+
+# limiter
+限流器
+
+# lru
+泛型LRU算法
 
 # math
 一些数值工具
@@ -19,7 +28,12 @@
 # qps
 基于滑动窗口的QPS统计
 
+# slices
+泛型slice工具
+
 # validate
 基于函数的参数校验，包含数值、字符串和slice类型校验函数
+
+
 
 
