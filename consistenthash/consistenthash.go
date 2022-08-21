@@ -28,7 +28,7 @@ type Hash func(data []byte) uint32
 // 注意，非线程安全，业务需要自行加锁
 type Map struct {
 	hash     Hash
-	replicas int
+	replicas int   // 虚拟节点数量
 	keys     []int // Sorted
 	hashMap  map[int]string
 }
