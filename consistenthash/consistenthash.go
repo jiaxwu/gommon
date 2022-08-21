@@ -25,6 +25,7 @@ import (
 
 type Hash func(data []byte) uint32
 
+// 注意，非线程安全，业务需要自行加锁
 type Map struct {
 	hash     Hash
 	replicas int
