@@ -13,7 +13,7 @@ limitations under the License.
 
 // Package consistenthash provides an implementation of a ring hash.
 
-// 使用https://github.com/golang/groupcache/blob/master/consistenthash/consistenthash_test.go的实现，修改Add为Reset方法
+// 使用 https://github.com/golang/groupcache/blob/master/consistenthash/consistenthash_test.go 的实现，添加Reset方法
 
 package consistenthash
 
@@ -49,12 +49,8 @@ func (m *Map) IsEmpty() bool {
 	return len(m.keys) == 0
 }
 
-// 重置一致性哈希的Keys
-func (m *Map) Reset(keys ...string) {
-	// 先清空
-	m.keys = nil
-	m.hashMap = map[int]string{}
-	// 再重置
+// Add adds some keys to the hash.
+func (m *Map) Add(keys ...string) {
 	for _, key := range keys {
 		for i := 0; i < m.replicas; i++ {
 			hash := int(m.hash([]byte(strconv.Itoa(i) + key)))
@@ -63,6 +59,15 @@ func (m *Map) Reset(keys ...string) {
 		}
 	}
 	sort.Ints(m.keys)
+}
+
+// 重置一致性哈希的Keys
+func (m *Map) Reset(keys ...string) {
+	// 先清空
+	m.keys = nil
+	m.hashMap = map[int]string{}
+	// 再重置
+	m.Add(keys...)
 }
 
 // Get gets the closest item in the hash to the provided key.
