@@ -24,7 +24,7 @@ func GetEnvString(name string) (string, error) {
 }
 
 // 获取环境变量，数值
-func GetEnvNumber[T constraints.Signed | constraints.Unsigned](name string) (T, error) {
+func GetEnvNumber[T constraints.Integer](name string) (T, error) {
 	return GetEnv(name, func(s, name string) (T, error) {
 		i, err := strconv.Atoi(s)
 		if err != nil {
@@ -53,7 +53,7 @@ func MustGetEnvString(name string) string {
 }
 
 // 获取环境变量，不能不存在或为空，数值
-func MustGetEnvNumber[T constraints.Signed | constraints.Unsigned](name string) T {
+func MustGetEnvNumber[T constraints.Integer](name string) T {
 	n, err := GetEnvNumber[T](name)
 	if err != nil {
 		panic(err)
