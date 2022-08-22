@@ -13,7 +13,7 @@ limitations under the License.
 
 // Package consistenthash provides an implementation of a ring hash.
 
-// 使用 https://github.com/golang/groupcache/blob/master/consistenthash/consistenthash_test.go 的实现，添加Reset方法
+// 基于 https://github.com/golang/groupcache/blob/master/consistenthash/consistenthash_test.go 的实现，添加Reset方法，添加注释
 
 package consistenthash
 
