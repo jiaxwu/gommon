@@ -1,6 +1,8 @@
 # gommon
 一些平时项目中使用到的库
 
+欢迎issues，pr！
+
 # cmd
 命令执行
 
