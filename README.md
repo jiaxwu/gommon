@@ -5,7 +5,7 @@
 命令执行
 
 # consistenthash
-一致性哈希
+一致性哈希，参考groupcache的实现，进行了一点点修改
 
 # container
 泛型容器
