@@ -1,27 +1,29 @@
-package pool
+package fix
 
-type FixPool[T any] struct {
+import "github.com/jiaxwu/gommon/pool"
+
+type Pool[T any] struct {
 	cache     chan T
-	newFunc   NewFunc[T]
-	clearFunc ClearFunc[T]
+	newFunc   pool.NewFunc[T]
+	clearFunc pool.ClearFunc[T]
 }
 
 // cacheSize: 对象池缓存长度
-func NewFixPool[T any](cacheSize int, newFunc NewFunc[T], clearFunc ClearFunc[T]) *FixPool[T] {
+func NewPool[T any](cacheSize int, newFunc pool.NewFunc[T], clearFunc pool.ClearFunc[T]) *Pool[T] {
 	if newFunc == nil {
 		panic("must be provide NewFunc")
 	}
 	if cacheSize < 1 {
 		panic("cacheSize cannot less then 1")
 	}
-	return &FixPool[T]{
+	return &Pool[T]{
 		cache:     make(chan T, cacheSize),
 		newFunc:   newFunc,
 		clearFunc: clearFunc,
 	}
 }
 
-func (p *FixPool[T]) Get() T {
+func (p *Pool[T]) Get() T {
 	select {
 	// 从channel读
 	case t := <-p.cache:
@@ -32,7 +34,7 @@ func (p *FixPool[T]) Get() T {
 	}
 }
 
-func (p *FixPool[T]) Put(t T) {
+func (p *Pool[T]) Put(t T) {
 	t = p.clearFunc(t)
 	select {
 	// 放入channel

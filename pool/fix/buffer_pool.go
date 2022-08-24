@@ -1,14 +1,14 @@
-package pool
+package fix
 
 import (
 	"bytes"
 )
 
-type BufferFixPool struct {
-	p *FixPool[*bytes.Buffer]
+type BufferPool struct {
+	p *Pool[*bytes.Buffer]
 }
 
-func NewBufferFixPool(cacheSize, size, cap int) *BufferFixPool {
+func NewBufferPool(cacheSize, size, cap int) *BufferPool {
 	if size > cap {
 		panic("size must be less then cap")
 	}
@@ -23,15 +23,15 @@ func NewBufferFixPool(cacheSize, size, cap int) *BufferFixPool {
 		b.Reset()
 		return b
 	}
-	return &BufferFixPool{
-		p: NewFixPool(cacheSize, newFunc, clearFunc),
+	return &BufferPool{
+		p: NewPool(cacheSize, newFunc, clearFunc),
 	}
 }
 
-func (p *BufferFixPool) Get() *bytes.Buffer {
+func (p *BufferPool) Get() *bytes.Buffer {
 	return p.p.Get()
 }
 
-func (p *BufferFixPool) Put(b *bytes.Buffer) {
+func (p *BufferPool) Put(b *bytes.Buffer) {
 	p.p.Put(b)
 }

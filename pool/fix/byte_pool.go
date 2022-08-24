@@ -1,13 +1,13 @@
-package pool
+package fix
 
-type ByteFixPool struct {
-	p *FixPool[[]byte]
+type BytePool struct {
+	p *Pool[[]byte]
 }
 
 // cacheSize: 字节池缓存长度
 // size: 字节数组长度
 // cap: 字节数组容量
-func NewByteFixPool(cacheSize, size, cap int) *ByteFixPool {
+func NewBytePool(cacheSize, size, cap int) *BytePool {
 	if size > cap {
 		panic("size must be less then cap")
 	}
@@ -17,15 +17,15 @@ func NewByteFixPool(cacheSize, size, cap int) *ByteFixPool {
 	clearFunc := func(b []byte) []byte {
 		return b[:0]
 	}
-	return &ByteFixPool{
-		p: NewFixPool(cacheSize, newFunc, clearFunc),
+	return &BytePool{
+		p: NewPool(cacheSize, newFunc, clearFunc),
 	}
 }
 
-func (p *ByteFixPool) Get() []byte {
+func (p *BytePool) Get() []byte {
 	return p.p.Get()
 }
 
-func (p *ByteFixPool) Put(b []byte) {
+func (p *BytePool) Put(b []byte) {
 	p.p.Put(b)
 }

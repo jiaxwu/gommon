@@ -32,9 +32,9 @@ func (p *Pool[T]) Get() T {
 }
 
 // 归还对象
-func (p *Pool[T]) Put(b T) {
+func (p *Pool[T]) Put(t T) {
 	if p.clearFunc != nil {
-		b = p.clearFunc(b)
+		t = p.clearFunc(t)
 	}
-	p.p.Put(b)
+	p.p.Put(t)
 }
