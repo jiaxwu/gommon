@@ -21,12 +21,12 @@ func (d *Deque[T]) PushBack(elem T) {
 }
 
 // 从队头出队
-func (d *Deque[T]) RemoveFront() T {
+func (d *Deque[T]) PopFront() T {
 	return d.l.RemoveFront()
 }
 
 // 从队尾出队
-func (d *Deque[T]) RemoveBack() T {
+func (d *Deque[T]) PopBack() T {
 	return d.l.RemoveBack()
 }
 
