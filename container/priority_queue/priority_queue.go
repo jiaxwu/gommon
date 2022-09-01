@@ -14,13 +14,18 @@ func New[T any](h []T, less func(e1 T, e2 T) bool) *PriorityQueue[T] {
 }
 
 // 入队
-func (p *PriorityQueue[T]) Add(elem T) {
+func (p *PriorityQueue[T]) Push(elem T) {
 	p.h.Push(elem)
 }
 
 // 出队
-func (p *PriorityQueue[T]) Remove() T {
+func (p *PriorityQueue[T]) Pop() T {
 	return p.h.Pop()
+}
+
+// 队头元素
+func (p *PriorityQueue[T]) Peek() T {
+	return p.h.Peek()
 }
 
 // 队列元素个数

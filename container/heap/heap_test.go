@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestHeap_Push(t *testing.T) {
+func TestHeapAll(t *testing.T) {
 	h := New(nil, func(e1 int, e2 int) bool {
 		return e1 > e2
 	})
@@ -18,17 +18,22 @@ func TestHeap_Push(t *testing.T) {
 	h.Push(9)
 	h.Push(1)
 
+	v := h.Peek()
+	if v != 9 {
+		t.Errorf("Peek() = %v, want %v", v, 9)
+	}
+
 	i := 9
 	for !h.Empty() {
 		v := h.Pop()
 		if i != v {
-			t.Errorf("Push() = %v, want %v", v, i)
+			t.Errorf("Pop() = %v, want %v", v, i)
 		}
 		i--
 	}
 }
 
-func TestHeap_Init(t *testing.T) {
+func TestHeapNew(t *testing.T) {
 	h := New([]int{5, 6, 3, 7, 2, 4, 8, 9, 1}, func(e1 int, e2 int) bool {
 		return e1 > e2
 	})
@@ -37,7 +42,7 @@ func TestHeap_Init(t *testing.T) {
 	for !h.Empty() {
 		v := h.Pop()
 		if i != v {
-			t.Errorf("Push() = %v, want %v", v, i)
+			t.Errorf("Pop() = %v, want %v", v, i)
 		}
 		i--
 	}

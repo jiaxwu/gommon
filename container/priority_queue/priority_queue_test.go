@@ -4,25 +4,30 @@ import (
 	"testing"
 )
 
-func TestPriorityQueue_Add(t *testing.T) {
-	h := New(nil, func(e1 int, e2 int) bool {
+func TestPriorityQueueAll(t *testing.T) {
+	q := New(nil, func(e1 int, e2 int) bool {
 		return e1 > e2
 	})
-	h.Add(5)
-	h.Add(6)
-	h.Add(3)
-	h.Add(7)
-	h.Add(2)
-	h.Add(4)
-	h.Add(8)
-	h.Add(9)
-	h.Add(1)
+	q.Push(5)
+	q.Push(6)
+	q.Push(3)
+	q.Push(7)
+	q.Push(2)
+	q.Push(4)
+	q.Push(8)
+	q.Push(9)
+	q.Push(1)
+
+	v := q.Peek()
+	if v != 9 {
+		t.Errorf("Peek() = %v, want %v", v, 9)
+	}
 
 	i := 9
-	for !h.Empty() {
-		v := h.Remove()
+	for !q.Empty() {
+		v := q.Pop()
 		if i != v {
-			t.Errorf("Add() = %v, want %v", v, i)
+			t.Errorf("Pop() = %v, want %v", v, i)
 		}
 		i--
 	}

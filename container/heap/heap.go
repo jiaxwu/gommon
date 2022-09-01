@@ -16,15 +16,7 @@ func New[T any](h []T, lessFunc func(e1 T, e2 T) bool) *Heap[T] {
 	return heap
 }
 
-func (h *Heap[T]) Len() int {
-	return len(h.h)
-}
-
-func (h *Heap[T]) Push(x T) {
-	h.push(x)
-	h.up(h.Len() - 1)
-}
-
+// 移除堆顶元素
 func (h *Heap[T]) Pop() T {
 	n := h.Len() - 1
 	h.swap(0, n)
@@ -32,6 +24,23 @@ func (h *Heap[T]) Pop() T {
 	return h.pop()
 }
 
+// 获取堆顶元素
+func (h *Heap[T]) Peek() T {
+	return h.h[0]
+}
+
+// 添加元素到堆
+func (h *Heap[T]) Push(x T) {
+	h.push(x)
+	h.up(h.Len() - 1)
+}
+
+// 堆长度
+func (h *Heap[T]) Len() int {
+	return len(h.h)
+}
+
+// 堆是否为空
 func (h *Heap[T]) Empty() bool {
 	return h.Len() == 0
 }
