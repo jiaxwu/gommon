@@ -23,8 +23,8 @@ var (
 )
 
 func TestNormal(t *testing.T) {
+	c := New([]byte(Key))
 	for _, text := range Texts {
-		c := New([]byte(Key))
 		enc := c.Encrypt([]byte(text))
 		dec := c.Decrypt(enc)
 		if !bytes.Equal(dec, []byte(text)) {
@@ -34,8 +34,8 @@ func TestNormal(t *testing.T) {
 }
 
 func TestBase64(t *testing.T) {
+	c := New([]byte(Key))
 	for _, text := range Texts {
-		c := New([]byte(Key))
 		enc := c.EncryptToBase64(text)
 		dec, err := c.DecryptFromBase64(enc)
 		if err != nil {

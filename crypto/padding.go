@@ -10,8 +10,9 @@ func PKCS5Padding(src []byte, blockSize int) []byte {
 	if blockSize > math.MaxUint8 {
 		panic("too large block size")
 	}
-	paddingLen := blockSize - len(src)%blockSize
-	dst := make([]byte, len(src)+paddingLen)
+	srcLen := len(src)
+	paddingLen := blockSize - srcLen%blockSize
+	dst := make([]byte, srcLen+paddingLen)
 	copy(dst, src)
 	for i := len(src); i < len(dst); i++ {
 		dst[i] = byte(paddingLen)
@@ -24,4 +25,10 @@ func PKCS5Trimming(src []byte) []byte {
 	fmt.Println(len(src))
 	paddingLen := src[len(src)-1]
 	return src[:len(src)-int(paddingLen)]
+}
+
+// 填充目标长度
+func PKCS5DstLen(srcLen, blockSize int) int {
+	paddingLen := blockSize - srcLen%blockSize
+	return srcLen + paddingLen
 }
