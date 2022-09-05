@@ -3,7 +3,7 @@ package lru
 import "github.com/jiaxwu/gommon/container/list"
 
 // 淘汰时触发
-type OnEvict[K comparable, V any] func(key K, value V)
+type OnEvict[K comparable, V any] func(entry *Entry[K, V])
 
 type Entry[K comparable, V any] struct {
 	Key   K
@@ -152,9 +152,8 @@ func (c *LRU[K, V]) RemoveOldest() {
 func (c *LRU[K, V]) Clear(needOnEvict bool) {
 	// 触发回调
 	if needOnEvict && c.onEvict != nil {
-		for _, v := range c.entries {
-			entry := v.Value
-			c.onEvict(entry.Key, entry.Value)
+		for _, elem := range c.entries {
+			c.onEvict(elem.Value)
 		}
 	}
 
@@ -192,6 +191,6 @@ func (c *LRU[K, V]) removeElement(elem *list.Element[*Entry[K, V]]) {
 	delete(c.entries, entry.Key)
 	// 回调
 	if c.onEvict != nil {
-		c.onEvict(entry.Key, entry.Value)
+		c.onEvict(entry)
 	}
 }

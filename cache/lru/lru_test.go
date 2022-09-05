@@ -20,9 +20,9 @@ func TestLRU_Put(t *testing.T) {
 
 func TestLRU_OnEvict(t *testing.T) {
 	c := New[string, int](3)
-	c.SetOnEvict(func(key string, value int) {
-		if key != "22" || value != 6 {
-			t.Errorf("OnEvict() = %v, want %v", key, "22")
+	c.SetOnEvict(func(entry *Entry[string, int]) {
+		if entry.Key != "22" || entry.Value != 6 {
+			t.Errorf("OnEvict() = %v, want %v", entry.Key, "22")
 		}
 	})
 	c.Put("11", 5)
