@@ -118,12 +118,12 @@ func TestLRU_Remove(t *testing.T) {
 	}
 }
 
-func TestLRU_RemoveOldest(t *testing.T) {
+func TestLRU_Evict(t *testing.T) {
 	c := New[string, int](3)
 	c.Put("11", 5)
 	c.Put("22", 6)
 	c.Put("33", 7)
-	c.RemoveOldest()
+	c.Evict()
 	c.Put("44", 8)
 
 	value, ok := c.Get("11")

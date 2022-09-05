@@ -47,7 +47,7 @@ func (c *Cache[K, V]) Put(key K, value V) {
 
 	// 如果已经到达最大尺寸，先剔除一个元素
 	if c.Full() {
-		c.RemoveOldest()
+		c.Evict()
 	}
 
 	// 添加元素
@@ -144,8 +144,8 @@ func (c *Cache[K, V]) Remove(key K) {
 	}
 }
 
-// 移除最老的元素
-func (c *Cache[K, V]) RemoveOldest() {
+// 淘汰元素
+func (c *Cache[K, V]) Evict() {
 	elem := c.evictList.Back()
 	if elem != nil {
 		c.removeElement(elem)
@@ -173,7 +173,7 @@ func (c *Cache[K, V]) Resize(capacity int, needOnEvict bool) {
 		diff = 0
 	}
 	for i := 0; i < diff; i++ {
-		c.RemoveOldest()
+		c.Evict()
 	}
 	c.capacity = capacity
 }
