@@ -14,8 +14,8 @@ type Entry[K comparable, V any] struct {
 // 优点：稳定淘汰
 // 非线程安全，请根据业务加锁
 type Cache[K comparable, V any] struct {
-	evictList *list.List[*Entry[K, V]]
 	entries   map[K]*list.Element[*Entry[K, V]]
+	evictList *list.List[*Entry[K, V]]
 	capacity  int
 	onEvict   OnEvict[K, V]
 }
@@ -25,8 +25,8 @@ func New[K comparable, V any](capacity int) *Cache[K, V] {
 		panic("too small capacity")
 	}
 	return &Cache[K, V]{
-		evictList: list.New[*Entry[K, V]](),
 		entries:   make(map[K]*list.Element[*Entry[K, V]]),
+		evictList: list.New[*Entry[K, V]](),
 		capacity:  capacity,
 	}
 }
@@ -144,8 +144,8 @@ func (c *Cache[K, V]) Clear(needOnEvict bool) {
 	}
 
 	// 清空
-	c.evictList.Init()
 	c.entries = make(map[K]*list.Element[*Entry[K, V]])
+	c.evictList.Init()
 }
 
 // 改变容量
