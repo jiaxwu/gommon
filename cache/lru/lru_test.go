@@ -76,34 +76,6 @@ func TestLRU_Peek(t *testing.T) {
 	}
 }
 
-func TestLRU_GetOldest(t *testing.T) {
-	c := New[string, int](3)
-	c.Put("11", 5)
-	c.Put("22", 6)
-	c.Put("33", 7)
-	c.Get("11")
-	c.Put("44", 8)
-
-	entry, ok := c.GetOldest()
-	if entry.Key != "33" || !ok {
-		t.Errorf("GetOldest() = %v, want %v", entry.Key, "33")
-	}
-}
-
-func TestLRU_GetNewest(t *testing.T) {
-	c := New[string, int](3)
-	c.Put("11", 5)
-	c.Put("22", 6)
-	c.Put("33", 7)
-	c.Get("11")
-	c.Put("44", 8)
-
-	entry, ok := c.GetNewest()
-	if entry.Key != "44" || !ok {
-		t.Errorf("GetNewest() = %v, want %v", entry.Key, "44")
-	}
-}
-
 func TestLRU_Remove(t *testing.T) {
 	c := New[string, int](3)
 	c.Put("11", 5)

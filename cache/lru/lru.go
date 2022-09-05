@@ -83,24 +83,6 @@ func (c *Cache[K, V]) Peek(key K) (V, bool) {
 	return value, false
 }
 
-// 获取最老元素，不更新状态
-func (c *Cache[K, V]) GetOldest() (*Entry[K, V], bool) {
-	elem := c.evictList.Back()
-	if elem != nil {
-		return elem.Value, true
-	}
-	return nil, false
-}
-
-// 获取最新元素，不更新状态
-func (c *Cache[K, V]) GetNewest() (*Entry[K, V], bool) {
-	elem := c.evictList.Front()
-	if elem != nil {
-		return elem.Value, true
-	}
-	return nil, false
-}
-
 // 是否包含元素，不更新状态
 func (c *Cache[K, V]) Contains(key K) bool {
 	_, ok := c.entries[key]
