@@ -6,7 +6,7 @@
 注：仓库代码测试用例比较简单，如需生产环境使用请充分测试。
 
 # cache
-泛型LRU、LFU、FIFO、ARC、Random算法
+泛型LRU、LFU、FIFO、ARC、Random、NearlyLRU算法
 
 # cmd
 命令执行

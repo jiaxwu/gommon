@@ -1,29 +1,40 @@
-package random
+package nearlylru
+
+import (
+	"time"
+)
+
+// 最小采样个数
+const MinSamples = 5
 
 // 淘汰时触发
 type OnEvict[K comparable, V any] func(entry *Entry[K, V])
 
 type Entry[K comparable, V any] struct {
-	Key   K
-	Value V
+	Key        K
+	Value      V
+	LastAccess time.Time // 最后一次使用时间
 }
 
-// 随机
-// 优点：实现简单
+// 近似最近最少使用
+// 基于随机采样
+// 优点：不需要额外链表
 // 非线程安全，请根据业务加锁
 type Cache[K comparable, V any] struct {
-	entries  map[K]V
+	entries  map[K]*Entry[K, V]
 	capacity int
+	samples  int
 	onEvict  OnEvict[K, V]
 }
 
 func New[K comparable, V any](capacity int) *Cache[K, V] {
-	if capacity < 1 {
+	if capacity < MinSamples {
 		panic("too small capacity")
 	}
 	return &Cache[K, V]{
-		entries:  make(map[K]V),
+		entries:  make(map[K]*Entry[K, V]),
 		capacity: capacity,
+		samples:  5,
 	}
 }
 
@@ -32,11 +43,23 @@ func (c *Cache[K, V]) SetOnEvict(onEvict OnEvict[K, V]) {
 	c.onEvict = onEvict
 }
 
+// 设置采样个数
+func (c *Cache[K, V]) SetSamples(samples int) {
+	if samples < MinSamples {
+		samples = MinSamples
+	}
+	if c.Cap() < samples {
+		panic("too large samples")
+	}
+	c.samples = samples
+}
+
 // 添加或更新元素
 func (c *Cache[K, V]) Put(key K, value V) {
 	// 如果 key 已经存在，直接设置新值
-	if _, ok := c.entries[key]; ok {
-		c.entries[key] = value
+	if entry, ok := c.entries[key]; ok {
+		entry.Value = value
+		entry.LastAccess = time.Now()
 		return
 	}
 
@@ -46,21 +69,39 @@ func (c *Cache[K, V]) Put(key K, value V) {
 	}
 
 	// 添加元素
-	c.entries[key] = value
+	c.entries[key] = &Entry[K, V]{
+		Key:        key,
+		Value:      value,
+		LastAccess: time.Now(),
+	}
 }
 
 // 获取元素
 func (c *Cache[K, V]) Get(key K) (V, bool) {
-	return c.Peek(key)
+	// 如果存在更新时间，然后返回
+	if entry, ok := c.entries[key]; ok {
+		entry.LastAccess = time.Now()
+		return entry.Value, true
+	}
+
+	// 不存在返回空值和false
+	var value V
+	return value, false
 }
 
-// 获取元素
+// 获取元素，不更新状态
 func (c *Cache[K, V]) Peek(key K) (V, bool) {
-	value, ok := c.entries[key]
-	return value, ok
+	// 如果存在
+	if entry, ok := c.entries[key]; ok {
+		return entry.Value, true
+	}
+
+	// 不存在返回空值和false
+	var value V
+	return value, false
 }
 
-// 是否包含元素
+// 是否包含元素，不更新状态
 func (c *Cache[K, V]) Contains(key K) bool {
 	_, ok := c.entries[key]
 	return ok
@@ -81,8 +122,8 @@ func (c *Cache[K, V]) Keys() []K {
 func (c *Cache[K, V]) Values() []V {
 	values := make([]V, c.Len())
 	i := 0
-	for _, value := range c.entries {
-		values[i] = value
+	for _, entry := range c.entries {
+		values[i] = entry.Value
 		i++
 	}
 	return values
@@ -92,11 +133,8 @@ func (c *Cache[K, V]) Values() []V {
 func (c *Cache[K, V]) Entries() []*Entry[K, V] {
 	entries := make([]*Entry[K, V], c.Len())
 	i := 0
-	for key, value := range c.entries {
-		entries[i] = &Entry[K, V]{
-			Key:   key,
-			Value: value,
-		}
+	for _, entry := range c.entries {
+		entries[i] = entry
 		i++
 	}
 	return entries
@@ -113,16 +151,21 @@ func (c *Cache[K, V]) Remove(key K) bool {
 
 // 淘汰元素
 func (c *Cache[K, V]) Evict() {
-	for key, value := range c.entries {
-		delete(c.entries, key)
-		// 回调
-		if c.onEvict != nil {
-			c.onEvict(&Entry[K, V]{
-				Key:   key,
-				Value: value,
-			})
+	var evictEntry *Entry[K, V]
+	i := 0
+	for _, entry := range c.entries {
+		if i >= c.samples {
+			break
 		}
-		return
+		if evictEntry == nil || entry.LastAccess.Before(evictEntry.LastAccess) {
+			evictEntry = entry
+		}
+		i++
+	}
+	delete(c.entries, evictEntry.Key)
+	// 回调
+	if c.onEvict != nil {
+		c.onEvict(evictEntry)
 	}
 }
 
@@ -130,16 +173,13 @@ func (c *Cache[K, V]) Evict() {
 func (c *Cache[K, V]) Clear(needOnEvict bool) {
 	// 触发回调
 	if needOnEvict && c.onEvict != nil {
-		for key, value := range c.entries {
-			c.onEvict(&Entry[K, V]{
-				Key:   key,
-				Value: value,
-			})
+		for _, entry := range c.entries {
+			c.onEvict(entry)
 		}
 	}
 
 	// 清空
-	c.entries = make(map[K]V)
+	c.entries = make(map[K]*Entry[K, V])
 }
 
 // 改变容量
