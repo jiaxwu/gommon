@@ -95,7 +95,6 @@ func (c *Cache[K, V]) Contains(key K) bool {
 }
 
 // 获取缓存的Keys
-// 从老到新
 func (c *Cache[K, V]) Keys() []K {
 	keys := make([]K, c.Len())
 	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
@@ -105,7 +104,6 @@ func (c *Cache[K, V]) Keys() []K {
 }
 
 // 获取缓存的Values
-// 从老到新
 func (c *Cache[K, V]) Values() []V {
 	values := make([]V, c.Len())
 	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
@@ -115,7 +113,6 @@ func (c *Cache[K, V]) Values() []V {
 }
 
 // 获取缓存的Entries
-// 从老到新
 func (c *Cache[K, V]) Entries() []*Entry[K, V] {
 	entries := make([]*Entry[K, V], c.Len())
 	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
@@ -125,10 +122,12 @@ func (c *Cache[K, V]) Entries() []*Entry[K, V] {
 }
 
 // 移除元素
-func (c *Cache[K, V]) Remove(key K) {
+func (c *Cache[K, V]) Remove(key K) bool {
 	if elem, ok := c.entries[key]; ok {
 		c.removeElement(elem)
+		return true
 	}
+	return false
 }
 
 // 淘汰元素
@@ -136,6 +135,10 @@ func (c *Cache[K, V]) Evict() {
 	elem := c.evictList.Back()
 	if elem != nil {
 		c.removeElement(elem)
+		// 回调
+		if c.onEvict != nil {
+			c.onEvict(elem.Value)
+		}
 	}
 }
 
@@ -185,10 +188,6 @@ func (c *Cache[K, V]) removeElement(elem *list.Element[*Entry[K, V]]) {
 	c.evictList.Remove(elem)
 	entry := elem.Value
 	delete(c.entries, entry.Key)
-	// 回调
-	if c.onEvict != nil {
-		c.onEvict(entry)
-	}
 }
 
 // 更新淘汰顺序

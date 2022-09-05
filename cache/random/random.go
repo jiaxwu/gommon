@@ -103,8 +103,12 @@ func (c *Cache[K, V]) Entries() []*Entry[K, V] {
 }
 
 // 移除元素
-func (c *Cache[K, V]) Remove(key K) {
-	delete(c.entries, key)
+func (c *Cache[K, V]) Remove(key K) bool {
+	if _, ok := c.entries[key]; ok {
+		delete(c.entries, key)
+		return true
+	}
+	return false
 }
 
 // 淘汰元素
