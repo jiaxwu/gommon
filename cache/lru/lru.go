@@ -180,7 +180,7 @@ func (c *LRU[K, V]) Resize(capacity int, needOnEvict bool) {
 
 // 元素个数
 func (c *LRU[K, V]) Len() int {
-	return c.evictList.Len()
+	return len(c.entries)
 }
 
 // 容量
