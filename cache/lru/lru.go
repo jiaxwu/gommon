@@ -11,6 +11,7 @@ type Entry[K comparable, V any] struct {
 }
 
 // 最近最少使用
+// 优点：稳定淘汰
 // 非线程安全，请根据业务加锁
 type LRU[K comparable, V any] struct {
 	evictList *list.List[*Entry[K, V]]
@@ -20,6 +21,9 @@ type LRU[K comparable, V any] struct {
 }
 
 func New[K comparable, V any](capacity int) *LRU[K, V] {
+	if capacity < 1 {
+		panic("too small capacity")
+	}
 	return &LRU[K, V]{
 		evictList: list.New[*Entry[K, V]](),
 		entries:   make(map[K]*list.Element[*Entry[K, V]]),
@@ -42,7 +46,7 @@ func (c *LRU[K, V]) Put(key K, value V) {
 	}
 
 	// 如果已经到达最大尺寸，先剔除一个元素
-	if c.evictList.Len() == c.capacity {
+	if c.Full() {
 		c.RemoveOldest()
 	}
 
@@ -182,6 +186,11 @@ func (c *LRU[K, V]) Len() int {
 // 容量
 func (c *LRU[K, V]) Cap() int {
 	return c.capacity
+}
+
+// 缓存满了
+func (c *LRU[K, V]) Full() bool {
+	return c.Len() == c.Cap()
 }
 
 // 移除给定节点
