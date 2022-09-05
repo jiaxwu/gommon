@@ -42,8 +42,8 @@ func (c *Cache[K, V]) SetOnEvict(onEvict OnEvict[K, V]) {
 func (c *Cache[K, V]) Put(key K, value V) {
 	// 如果 key 已经存在，直接更新淘汰顺序，然后设置新值
 	if elem, ok := c.entries[key]; ok {
-		elem.Value.Value = value
 		c.updateEvictList(elem)
+		elem.Value.Value = value
 		return
 	}
 
