@@ -4,7 +4,7 @@ import (
 	"testing"
 )
 
-func TestLRU_Put(t *testing.T) {
+func TestCache_Put(t *testing.T) {
 	c := New[string, int](3)
 	c.Put("11", 5)
 	c.Put("22", 6)
@@ -18,7 +18,7 @@ func TestLRU_Put(t *testing.T) {
 	}
 }
 
-func TestLRU_OnEvict(t *testing.T) {
+func TestCache_OnEvict(t *testing.T) {
 	c := New[string, int](3)
 	c.SetOnEvict(func(entry *Entry[string, int]) {
 		if entry.Key != "22" || entry.Value != 6 {
@@ -37,7 +37,7 @@ func TestLRU_OnEvict(t *testing.T) {
 	}
 }
 
-func TestLRU_Clear(t *testing.T) {
+func TestCache_Clear(t *testing.T) {
 	c := New[string, int](3)
 	c.Put("11", 5)
 	c.Put("22", 6)
@@ -62,7 +62,7 @@ func TestLRU_Clear(t *testing.T) {
 	}
 }
 
-func TestLRU_Peek(t *testing.T) {
+func TestCache_Peek(t *testing.T) {
 	c := New[string, int](3)
 	c.Put("11", 5)
 	c.Put("22", 6)
@@ -76,7 +76,7 @@ func TestLRU_Peek(t *testing.T) {
 	}
 }
 
-func TestLRU_Remove(t *testing.T) {
+func TestCache_Remove(t *testing.T) {
 	c := New[string, int](3)
 	c.Put("11", 5)
 	c.Put("22", 6)
@@ -90,7 +90,7 @@ func TestLRU_Remove(t *testing.T) {
 	}
 }
 
-func TestLRU_Evict(t *testing.T) {
+func TestCache_Evict(t *testing.T) {
 	c := New[string, int](3)
 	c.Put("11", 5)
 	c.Put("22", 6)
@@ -104,7 +104,7 @@ func TestLRU_Evict(t *testing.T) {
 	}
 }
 
-func TestLRU_Entries(t *testing.T) {
+func TestCache_Entries(t *testing.T) {
 	c := New[string, int](3)
 	c.Put("11", 5)
 	c.Put("22", 6)
