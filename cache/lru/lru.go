@@ -93,8 +93,8 @@ func (c *Cache[K, V]) Contains(key K) bool {
 // 从老到新
 func (c *Cache[K, V]) Keys() []K {
 	keys := make([]K, c.Len())
-	for ent, i := c.evictList.Back(), 0; ent != nil; ent, i = ent.Prev(), i+1 {
-		keys[i] = ent.Value.Key
+	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
+		keys[i] = elem.Value.Key
 	}
 	return keys
 }
@@ -103,8 +103,8 @@ func (c *Cache[K, V]) Keys() []K {
 // 从老到新
 func (c *Cache[K, V]) Values() []V {
 	values := make([]V, c.Len())
-	for ent, i := c.evictList.Back(), 0; ent != nil; ent, i = ent.Prev(), i+1 {
-		values[i] = ent.Value.Value
+	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
+		values[i] = elem.Value.Value
 	}
 	return values
 }
@@ -113,8 +113,8 @@ func (c *Cache[K, V]) Values() []V {
 // 从老到新
 func (c *Cache[K, V]) Entries() []*Entry[K, V] {
 	entries := make([]*Entry[K, V], c.Len())
-	for ent, i := c.evictList.Back(), 0; ent != nil; ent, i = ent.Prev(), i+1 {
-		entries[i] = ent.Value
+	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
+		entries[i] = elem.Value
 	}
 	return entries
 }
@@ -138,7 +138,7 @@ func (c *Cache[K, V]) Evict() {
 func (c *Cache[K, V]) Clear(needOnEvict bool) {
 	// 触发回调
 	if needOnEvict && c.onEvict != nil {
-		for _, elem := range c.entries {
+		for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
 			c.onEvict(elem.Value)
 		}
 	}
