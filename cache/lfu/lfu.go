@@ -12,8 +12,8 @@ type Entry[K comparable, V any] struct {
 }
 
 // 最少使用
-// 有效保护长期热门数据，不会因为偶发情况被移除
-// 但是如果访问模式改变，可能会导致某些很少访问的数据难以被置换出去
+// 优点：有效保护长期热门数据，不会因为偶发情况被移除
+// 缺点：如果访问模式改变，可能会导致某些很少访问的数据难以被置换出去
 // 非线程安全，请根据业务加锁
 type Cache[K comparable, V any] struct {
 	entries   map[K]*list.Element[*Entry[K, V]]
@@ -27,8 +27,8 @@ func New[K comparable, V any](capacity int) *Cache[K, V] {
 		panic("too small capacity")
 	}
 	return &Cache[K, V]{
-		evictList: list.New[*Entry[K, V]](),
 		entries:   make(map[K]*list.Element[*Entry[K, V]]),
+		evictList: list.New[*Entry[K, V]](),
 		capacity:  capacity,
 	}
 }
@@ -149,8 +149,8 @@ func (c *Cache[K, V]) Clear(needOnEvict bool) {
 	}
 
 	// 清空
-	c.evictList.Init()
 	c.entries = make(map[K]*list.Element[*Entry[K, V]])
+	c.evictList.Init()
 }
 
 // 改变容量
