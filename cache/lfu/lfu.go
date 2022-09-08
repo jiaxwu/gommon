@@ -1,14 +1,13 @@
 package lfu
 
-import "github.com/jiaxwu/gommon/container/list"
+import (
+	"github.com/jiaxwu/gommon/cache"
+	"github.com/jiaxwu/gommon/container/list"
+)
 
-// 淘汰时触发
-type OnEvict[K comparable, V any] func(entry *Entry[K, V])
-
-type Entry[K comparable, V any] struct {
-	Key       K
-	Value     V
-	Frequency uint64 // 频率
+type frequencyEntry[K comparable, V any] struct {
+	entry     *cache.Entry[K, V]
+	frequency uint64 // 频率
 }
 
 // 最少使用
@@ -16,10 +15,10 @@ type Entry[K comparable, V any] struct {
 // 缺点：如果访问模式改变，可能会导致某些很少访问的数据难以被置换出去
 // 非线程安全，请根据业务加锁
 type Cache[K comparable, V any] struct {
-	entries   map[K]*list.Element[*Entry[K, V]]
-	evictList *list.List[*Entry[K, V]]
+	entries   map[K]*list.Element[*frequencyEntry[K, V]]
+	evictList *list.List[*frequencyEntry[K, V]]
 	capacity  int
-	onEvict   OnEvict[K, V]
+	onEvict   cache.OnEvict[K, V]
 }
 
 func New[K comparable, V any](capacity int) *Cache[K, V] {
@@ -27,14 +26,14 @@ func New[K comparable, V any](capacity int) *Cache[K, V] {
 		panic("too small capacity")
 	}
 	return &Cache[K, V]{
-		entries:   make(map[K]*list.Element[*Entry[K, V]]),
-		evictList: list.New[*Entry[K, V]](),
+		entries:   make(map[K]*list.Element[*frequencyEntry[K, V]]),
+		evictList: list.New[*frequencyEntry[K, V]](),
 		capacity:  capacity,
 	}
 }
 
 // 设置 OnEvict
-func (c *Cache[K, V]) SetOnEvict(onEvict OnEvict[K, V]) {
+func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 	c.onEvict = onEvict
 }
 
@@ -43,7 +42,7 @@ func (c *Cache[K, V]) Put(key K, value V) {
 	// 如果 key 已经存在，直接更新淘汰顺序，然后设置新值
 	if elem, ok := c.entries[key]; ok {
 		c.updateEvictList(elem)
-		elem.Value.Value = value
+		elem.Value.entry.Value = value
 		return
 	}
 
@@ -53,10 +52,12 @@ func (c *Cache[K, V]) Put(key K, value V) {
 	}
 
 	// 添加元素
-	elem := c.evictList.PushBack(&Entry[K, V]{
-		Key:       key,
-		Value:     value,
-		Frequency: 1,
+	elem := c.evictList.PushBack(&frequencyEntry[K, V]{
+		entry: &cache.Entry[K, V]{
+			Key:   key,
+			Value: value,
+		},
+		frequency: 1,
 	})
 	c.entries[key] = elem
 }
@@ -66,9 +67,9 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 	// 如果存在频率+1，然后返回
 	if elem, ok := c.entries[key]; ok {
 		entry := elem.Value
-		entry.Frequency++
+		entry.frequency++
 		c.updateEvictList(elem)
-		return entry.Value, true
+		return entry.entry.Value, true
 	}
 
 	// 不存在返回空值和false
@@ -80,7 +81,7 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 func (c *Cache[K, V]) Peek(key K) (V, bool) {
 	// 如果存在
 	if elem, ok := c.entries[key]; ok {
-		return elem.Value.Value, true
+		return elem.Value.entry.Value, true
 	}
 
 	// 不存在返回空值和false
@@ -98,7 +99,7 @@ func (c *Cache[K, V]) Contains(key K) bool {
 func (c *Cache[K, V]) Keys() []K {
 	keys := make([]K, c.Len())
 	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
-		keys[i] = elem.Value.Key
+		keys[i] = elem.Value.entry.Key
 	}
 	return keys
 }
@@ -107,16 +108,16 @@ func (c *Cache[K, V]) Keys() []K {
 func (c *Cache[K, V]) Values() []V {
 	values := make([]V, c.Len())
 	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
-		values[i] = elem.Value.Value
+		values[i] = elem.Value.entry.Value
 	}
 	return values
 }
 
 // 获取缓存的Entries
-func (c *Cache[K, V]) Entries() []*Entry[K, V] {
-	entries := make([]*Entry[K, V], c.Len())
+func (c *Cache[K, V]) Entries() []*cache.Entry[K, V] {
+	entries := make([]*cache.Entry[K, V], c.Len())
 	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
-		entries[i] = elem.Value
+		entries[i] = elem.Value.entry
 	}
 	return entries
 }
@@ -131,15 +132,18 @@ func (c *Cache[K, V]) Remove(key K) bool {
 }
 
 // 淘汰元素
-func (c *Cache[K, V]) Evict() {
+func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
 	elem := c.evictList.Back()
 	if elem != nil {
 		c.removeElement(elem)
+		entry := elem.Value.entry
 		// 回调
 		if c.onEvict != nil {
-			c.onEvict(elem.Value)
+			c.onEvict(entry)
 		}
+		return entry
 	}
+	return nil
 }
 
 // 清空缓存
@@ -147,12 +151,12 @@ func (c *Cache[K, V]) Clear(needOnEvict bool) {
 	// 触发回调
 	if needOnEvict && c.onEvict != nil {
 		for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
-			c.onEvict(elem.Value)
+			c.onEvict(elem.Value.entry)
 		}
 	}
 
 	// 清空
-	c.entries = make(map[K]*list.Element[*Entry[K, V]])
+	c.entries = make(map[K]*list.Element[*frequencyEntry[K, V]])
 	c.evictList.Init()
 }
 
@@ -184,15 +188,15 @@ func (c *Cache[K, V]) Full() bool {
 }
 
 // 移除给定节点
-func (c *Cache[K, V]) removeElement(elem *list.Element[*Entry[K, V]]) {
+func (c *Cache[K, V]) removeElement(elem *list.Element[*frequencyEntry[K, V]]) {
 	c.evictList.Remove(elem)
 	entry := elem.Value
-	delete(c.entries, entry.Key)
+	delete(c.entries, entry.entry.Key)
 }
 
 // 更新淘汰顺序
-func (c *Cache[K, V]) updateEvictList(elem *list.Element[*Entry[K, V]]) {
-	if elem.Prev() != nil && elem.Prev().Value.Frequency < elem.Value.Frequency {
+func (c *Cache[K, V]) updateEvictList(elem *list.Element[*frequencyEntry[K, V]]) {
+	if elem.Prev() != nil && elem.Prev().Value.frequency < elem.Value.frequency {
 		// 移动到前面元素之前
 		c.evictList.MoveBefore(elem, elem.Prev())
 	}

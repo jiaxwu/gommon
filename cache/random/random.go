@@ -1,12 +1,6 @@
 package random
 
-// 淘汰时触发
-type OnEvict[K comparable, V any] func(entry *Entry[K, V])
-
-type Entry[K comparable, V any] struct {
-	Key   K
-	Value V
-}
+import "github.com/jiaxwu/gommon/cache"
 
 // 随机
 // 优点：实现简单
@@ -14,7 +8,7 @@ type Entry[K comparable, V any] struct {
 type Cache[K comparable, V any] struct {
 	entries  map[K]V
 	capacity int
-	onEvict  OnEvict[K, V]
+	onEvict  cache.OnEvict[K, V]
 }
 
 func New[K comparable, V any](capacity int) *Cache[K, V] {
@@ -28,7 +22,7 @@ func New[K comparable, V any](capacity int) *Cache[K, V] {
 }
 
 // 设置 OnEvict
-func (c *Cache[K, V]) SetOnEvict(onEvict OnEvict[K, V]) {
+func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 	c.onEvict = onEvict
 }
 
@@ -89,11 +83,11 @@ func (c *Cache[K, V]) Values() []V {
 }
 
 // 获取缓存的Entries
-func (c *Cache[K, V]) Entries() []*Entry[K, V] {
-	entries := make([]*Entry[K, V], c.Len())
+func (c *Cache[K, V]) Entries() []*cache.Entry[K, V] {
+	entries := make([]*cache.Entry[K, V], c.Len())
 	i := 0
 	for key, value := range c.entries {
-		entries[i] = &Entry[K, V]{
+		entries[i] = &cache.Entry[K, V]{
 			Key:   key,
 			Value: value,
 		}
@@ -117,7 +111,7 @@ func (c *Cache[K, V]) Evict() {
 		delete(c.entries, key)
 		// 回调
 		if c.onEvict != nil {
-			c.onEvict(&Entry[K, V]{
+			c.onEvict(&cache.Entry[K, V]{
 				Key:   key,
 				Value: value,
 			})
@@ -131,7 +125,7 @@ func (c *Cache[K, V]) Clear(needOnEvict bool) {
 	// 触发回调
 	if needOnEvict && c.onEvict != nil {
 		for key, value := range c.entries {
-			c.onEvict(&Entry[K, V]{
+			c.onEvict(&cache.Entry[K, V]{
 				Key:   key,
 				Value: value,
 			})

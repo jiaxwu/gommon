@@ -1,19 +1,12 @@
 package arc
 
 import (
+	"github.com/jiaxwu/gommon/cache"
 	"github.com/jiaxwu/gommon/math"
 
 	"github.com/jiaxwu/gommon/cache/lfu"
 	"github.com/jiaxwu/gommon/cache/lru"
 )
-
-// 淘汰时触发
-type OnEvict[K comparable, V any] func(entry *Entry[K, V])
-
-type Entry[K comparable, V any] struct {
-	Key   K
-	Value V
-}
 
 // 结合LRU和LFU，根据负载动态调整LRU和LFU容量
 // 优点：集合LRU和LFU优点
@@ -27,7 +20,7 @@ type Cache[K comparable, V any] struct {
 	// 表示有多偏向LRU
 	preferLRU int
 	capacity  int
-	onEvict   OnEvict[K, V]
+	onEvict   cache.OnEvict[K, V]
 }
 
 func New[K comparable, V any](capacity int) *Cache[K, V] {
@@ -41,19 +34,11 @@ func New[K comparable, V any](capacity int) *Cache[K, V] {
 		lfuEvict: lfu.New[K, V](capacity),
 		capacity: capacity,
 	}
-	c.lruCache.SetOnEvict(func(entry *lru.Entry[K, V]) {
-		c.lruEvict.Put(entry.Key, entry.Value)
-		c.doOnEvict(entry.Key, entry.Value)
-	})
-	c.lfuCache.SetOnEvict(func(entry *lfu.Entry[K, V]) {
-		c.lfuEvict.Put(entry.Key, entry.Value)
-		c.doOnEvict(entry.Key, entry.Value)
-	})
 	return c
 }
 
 // 设置 OnEvict
-func (c *Cache[K, V]) SetOnEvict(onEvict OnEvict[K, V]) {
+func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 	c.onEvict = onEvict
 }
 
@@ -106,10 +91,14 @@ func (c *Cache[K, V]) Put(key K, value V) {
 	}
 
 	if c.lruEvict.Len() > c.Cap()-c.preferLRU {
-		c.lruEvict.Evict()
+		entry := c.lruEvict.Evict()
+		c.lruEvict.Put(entry.Key, entry.Value)
+		c.doOnEvict(entry.Key, entry.Value)
 	}
 	if c.lfuEvict.Len() > c.preferLRU {
-		c.lfuEvict.Evict()
+		entry := c.lfuEvict.Evict()
+		c.lfuEvict.Put(entry.Key, entry.Value)
+		c.doOnEvict(entry.Key, entry.Value)
 	}
 
 	// 添加到LRUCache
@@ -165,23 +154,10 @@ func (c *Cache[K, V]) Values() []V {
 }
 
 // 获取缓存的Entries
-func (c *Cache[K, V]) Entries() []*Entry[K, V] {
-	entries := make([]*Entry[K, V], c.Len())
-	i := 0
-	for _, entry := range c.lruCache.Entries() {
-		entries[i] = &Entry[K, V]{
-			Key:   entry.Key,
-			Value: entry.Value,
-		}
-		i++
-	}
-	for _, entry := range c.lfuCache.Entries() {
-		entries[i] = &Entry[K, V]{
-			Key:   entry.Key,
-			Value: entry.Value,
-		}
-		i++
-	}
+func (c *Cache[K, V]) Entries() []*cache.Entry[K, V] {
+	entries := make([]*cache.Entry[K, V], c.Len())
+	copy(entries, c.lruCache.Entries())
+	copy(entries[c.lruCache.Len():], c.lfuCache.Entries())
 	return entries
 }
 
@@ -238,7 +214,7 @@ func (c *Cache[K, V]) evict(lfuEvictContainsKey bool) {
 
 func (c *Cache[K, V]) doOnEvict(key K, value V) {
 	if c.onEvict != nil {
-		c.onEvict(&Entry[K, V]{
+		c.onEvict(&cache.Entry[K, V]{
 			Key:   key,
 			Value: value,
 		})

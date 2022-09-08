@@ -1,23 +1,18 @@
 package fifo
 
-import "github.com/jiaxwu/gommon/container/list"
-
-// 淘汰时触发
-type OnEvict[K comparable, V any] func(entry *Entry[K, V])
-
-type Entry[K comparable, V any] struct {
-	Key   K
-	Value V
-}
+import (
+	"github.com/jiaxwu/gommon/cache"
+	"github.com/jiaxwu/gommon/container/list"
+)
 
 // 先进先出
 // 优点：公平
 // 非线程安全，请根据业务加锁
 type Cache[K comparable, V any] struct {
-	entries   map[K]*list.Element[*Entry[K, V]]
-	evictList *list.List[*Entry[K, V]]
+	entries   map[K]*list.Element[*cache.Entry[K, V]]
+	evictList *list.List[*cache.Entry[K, V]]
 	capacity  int
-	onEvict   OnEvict[K, V]
+	onEvict   cache.OnEvict[K, V]
 }
 
 func New[K comparable, V any](capacity int) *Cache[K, V] {
@@ -25,14 +20,14 @@ func New[K comparable, V any](capacity int) *Cache[K, V] {
 		panic("too small capacity")
 	}
 	return &Cache[K, V]{
-		entries:   make(map[K]*list.Element[*Entry[K, V]]),
-		evictList: list.New[*Entry[K, V]](),
+		entries:   make(map[K]*list.Element[*cache.Entry[K, V]]),
+		evictList: list.New[*cache.Entry[K, V]](),
 		capacity:  capacity,
 	}
 }
 
 // 设置 OnEvict
-func (c *Cache[K, V]) SetOnEvict(onEvict OnEvict[K, V]) {
+func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 	c.onEvict = onEvict
 }
 
@@ -51,7 +46,7 @@ func (c *Cache[K, V]) Put(key K, value V) {
 	}
 
 	// 添加元素
-	elem := c.evictList.PushFront(&Entry[K, V]{
+	elem := c.evictList.PushFront(&cache.Entry[K, V]{
 		Key:   key,
 		Value: value,
 	})
@@ -100,8 +95,8 @@ func (c *Cache[K, V]) Values() []V {
 }
 
 // 获取缓存的Entries
-func (c *Cache[K, V]) Entries() []*Entry[K, V] {
-	entries := make([]*Entry[K, V], c.Len())
+func (c *Cache[K, V]) Entries() []*cache.Entry[K, V] {
+	entries := make([]*cache.Entry[K, V], c.Len())
 	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
 		entries[i] = elem.Value
 	}
@@ -118,7 +113,7 @@ func (c *Cache[K, V]) Remove(key K) bool {
 }
 
 // 淘汰元素
-func (c *Cache[K, V]) Evict() {
+func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
 	elem := c.evictList.Back()
 	if elem != nil {
 		c.removeElement(elem)
@@ -126,7 +121,9 @@ func (c *Cache[K, V]) Evict() {
 		if c.onEvict != nil {
 			c.onEvict(elem.Value)
 		}
+		return elem.Value
 	}
+	return nil
 }
 
 // 清空缓存
@@ -139,7 +136,7 @@ func (c *Cache[K, V]) Clear(needOnEvict bool) {
 	}
 
 	// 清空
-	c.entries = make(map[K]*list.Element[*Entry[K, V]])
+	c.entries = make(map[K]*list.Element[*cache.Entry[K, V]])
 	c.evictList.Init()
 }
 
@@ -171,7 +168,7 @@ func (c *Cache[K, V]) Full() bool {
 }
 
 // 移除给定节点
-func (c *Cache[K, V]) removeElement(elem *list.Element[*Entry[K, V]]) {
+func (c *Cache[K, V]) removeElement(elem *list.Element[*cache.Entry[K, V]]) {
 	c.evictList.Remove(elem)
 	entry := elem.Value
 	delete(c.entries, entry.Key)

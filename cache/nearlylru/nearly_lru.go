@@ -2,18 +2,16 @@ package nearlylru
 
 import (
 	"time"
+
+	"github.com/jiaxwu/gommon/cache"
 )
 
 // 最小采样个数
 const MinSamples = 5
 
-// 淘汰时触发
-type OnEvict[K comparable, V any] func(entry *Entry[K, V])
-
-type Entry[K comparable, V any] struct {
-	Key        K
-	Value      V
-	LastAccess time.Time // 最后一次使用时间
+type lastAccessEntry[K comparable, V any] struct {
+	entry      *cache.Entry[K, V]
+	lastAccess time.Time // 最后一次使用时间
 }
 
 // 近似最近最少使用
@@ -21,10 +19,10 @@ type Entry[K comparable, V any] struct {
 // 优点：不需要额外链表
 // 非线程安全，请根据业务加锁
 type Cache[K comparable, V any] struct {
-	entries  map[K]*Entry[K, V]
+	entries  map[K]*lastAccessEntry[K, V]
 	capacity int
 	samples  int
-	onEvict  OnEvict[K, V]
+	onEvict  cache.OnEvict[K, V]
 }
 
 func New[K comparable, V any](capacity int) *Cache[K, V] {
@@ -32,14 +30,14 @@ func New[K comparable, V any](capacity int) *Cache[K, V] {
 		panic("too small capacity")
 	}
 	return &Cache[K, V]{
-		entries:  make(map[K]*Entry[K, V]),
+		entries:  make(map[K]*lastAccessEntry[K, V]),
 		capacity: capacity,
 		samples:  5,
 	}
 }
 
 // 设置 OnEvict
-func (c *Cache[K, V]) SetOnEvict(onEvict OnEvict[K, V]) {
+func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 	c.onEvict = onEvict
 }
 
@@ -58,8 +56,8 @@ func (c *Cache[K, V]) SetSamples(samples int) {
 func (c *Cache[K, V]) Put(key K, value V) {
 	// 如果 key 已经存在，直接设置新值
 	if entry, ok := c.entries[key]; ok {
-		entry.Value = value
-		entry.LastAccess = time.Now()
+		entry.entry.Value = value
+		entry.lastAccess = time.Now()
 		return
 	}
 
@@ -69,10 +67,12 @@ func (c *Cache[K, V]) Put(key K, value V) {
 	}
 
 	// 添加元素
-	c.entries[key] = &Entry[K, V]{
-		Key:        key,
-		Value:      value,
-		LastAccess: time.Now(),
+	c.entries[key] = &lastAccessEntry[K, V]{
+		entry: &cache.Entry[K, V]{
+			Key:   key,
+			Value: value,
+		},
+		lastAccess: time.Now(),
 	}
 }
 
@@ -80,8 +80,8 @@ func (c *Cache[K, V]) Put(key K, value V) {
 func (c *Cache[K, V]) Get(key K) (V, bool) {
 	// 如果存在更新时间，然后返回
 	if entry, ok := c.entries[key]; ok {
-		entry.LastAccess = time.Now()
-		return entry.Value, true
+		entry.lastAccess = time.Now()
+		return entry.entry.Value, true
 	}
 
 	// 不存在返回空值和false
@@ -93,7 +93,7 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 func (c *Cache[K, V]) Peek(key K) (V, bool) {
 	// 如果存在
 	if entry, ok := c.entries[key]; ok {
-		return entry.Value, true
+		return entry.entry.Value, true
 	}
 
 	// 不存在返回空值和false
@@ -123,18 +123,18 @@ func (c *Cache[K, V]) Values() []V {
 	values := make([]V, c.Len())
 	i := 0
 	for _, entry := range c.entries {
-		values[i] = entry.Value
+		values[i] = entry.entry.Value
 		i++
 	}
 	return values
 }
 
 // 获取缓存的Entries
-func (c *Cache[K, V]) Entries() []*Entry[K, V] {
-	entries := make([]*Entry[K, V], c.Len())
+func (c *Cache[K, V]) Entries() []*cache.Entry[K, V] {
+	entries := make([]*cache.Entry[K, V], c.Len())
 	i := 0
 	for _, entry := range c.entries {
-		entries[i] = entry
+		entries[i] = entry.entry
 		i++
 	}
 	return entries
@@ -150,23 +150,27 @@ func (c *Cache[K, V]) Remove(key K) bool {
 }
 
 // 淘汰元素
-func (c *Cache[K, V]) Evict() {
-	var evictEntry *Entry[K, V]
+func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
+	var evictEntry *lastAccessEntry[K, V]
 	i := 0
 	for _, entry := range c.entries {
 		if i >= c.samples {
 			break
 		}
-		if evictEntry == nil || entry.LastAccess.Before(evictEntry.LastAccess) {
+		if evictEntry == nil || entry.lastAccess.Before(evictEntry.lastAccess) {
 			evictEntry = entry
 		}
 		i++
 	}
-	delete(c.entries, evictEntry.Key)
+	if evictEntry == nil {
+		return nil
+	}
+	delete(c.entries, evictEntry.entry.Key)
 	// 回调
 	if c.onEvict != nil {
-		c.onEvict(evictEntry)
+		c.onEvict(evictEntry.entry)
 	}
+	return evictEntry.entry
 }
 
 // 清空缓存
@@ -174,12 +178,12 @@ func (c *Cache[K, V]) Clear(needOnEvict bool) {
 	// 触发回调
 	if needOnEvict && c.onEvict != nil {
 		for _, entry := range c.entries {
-			c.onEvict(entry)
+			c.onEvict(entry.entry)
 		}
 	}
 
 	// 清空
-	c.entries = make(map[K]*Entry[K, V])
+	c.entries = make(map[K]*lastAccessEntry[K, V])
 }
 
 // 改变容量
