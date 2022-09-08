@@ -134,16 +134,16 @@ func (c *Cache[K, V]) Remove(key K) bool {
 // 淘汰元素
 func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
 	elem := c.evictList.Back()
-	if elem != nil {
-		c.removeElement(elem)
-		entry := elem.Value.entry
-		// 回调
-		if c.onEvict != nil {
-			c.onEvict(entry)
-		}
-		return entry
+	if elem == nil {
+		return nil
 	}
-	return nil
+	c.removeElement(elem)
+	entry := elem.Value.entry
+	// 回调
+	if c.onEvict != nil {
+		c.onEvict(entry)
+	}
+	return entry
 }
 
 // 清空缓存

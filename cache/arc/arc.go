@@ -155,10 +155,7 @@ func (c *Cache[K, V]) Values() []V {
 
 // 获取缓存的Entries
 func (c *Cache[K, V]) Entries() []*cache.Entry[K, V] {
-	entries := make([]*cache.Entry[K, V], c.Len())
-	copy(entries, c.lruCache.Entries())
-	copy(entries[c.lruCache.Len():], c.lfuCache.Entries())
-	return entries
+	return append(c.lruCache.Entries(), c.lfuCache.Entries()...)
 }
 
 // 移除元素

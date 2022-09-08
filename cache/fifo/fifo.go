@@ -115,15 +115,15 @@ func (c *Cache[K, V]) Remove(key K) bool {
 // 淘汰元素
 func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
 	elem := c.evictList.Back()
-	if elem != nil {
-		c.removeElement(elem)
-		// 回调
-		if c.onEvict != nil {
-			c.onEvict(elem.Value)
-		}
-		return elem.Value
+	if elem == nil {
+		return nil
 	}
-	return nil
+	c.removeElement(elem)
+	// 回调
+	if c.onEvict != nil {
+		c.onEvict(elem.Value)
+	}
+	return elem.Value
 }
 
 // 清空缓存

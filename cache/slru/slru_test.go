@@ -2,6 +2,8 @@ package slru
 
 import (
 	"testing"
+
+	"github.com/jiaxwu/gommon/cache"
 )
 
 func TestCache_Put(t *testing.T) {
@@ -20,7 +22,7 @@ func TestCache_Put(t *testing.T) {
 
 func TestCache_OnEvict(t *testing.T) {
 	c := New[string, int](3)
-	c.SetOnEvict(func(entry *Entry[string, int]) {
+	c.SetOnEvict(func(entry *cache.Entry[string, int]) {
 		if entry.Key != "22" || entry.Value != 6 {
 			t.Errorf("OnEvict() = %v, want %v", entry.Key, "22")
 		}
@@ -113,7 +115,7 @@ func TestCache_Entries(t *testing.T) {
 	c.Put("44", 8)
 
 	entries := c.Entries()
-	keys := []string{"33", "11", "44"}
+	keys := []string{"33", "44", "11"}
 	for i, entry := range entries {
 		if entry.Key != keys[i] {
 			t.Errorf("Get() = %v, want %v", entry.Key, keys[i])

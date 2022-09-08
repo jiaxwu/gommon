@@ -1,96 +1,77 @@
 package slru
 
 import (
-	"github.com/jiaxwu/gommon/container/list"
-)
+	"fmt"
 
-// 段类型
-type SegmentType uint8
-
-const (
-	// 试用段
-	SegmentTypeProbation = 1
-	// 保护段
-	SegmentTypeProtected = 2
+	"github.com/jiaxwu/gommon/cache"
+	"github.com/jiaxwu/gommon/cache/lru"
 )
 
 // 保护段比例
 const ProtectedPercentage = 0.8
 
-// 淘汰时触发
-type OnEvict[K comparable, V any] func(entry *Entry[K, V])
-
-type Entry[K comparable, V any] struct {
-	Key         K
-	Value       V
-	SegmentType SegmentType
-}
-
 // 分段最近最少使用
-// 一开始Put()会写入第一个段
-// 然后被Get()才写入第二个段
+// 第一次access是淘汰段，第二次access才进入保护段
 // 避免某些很少读取的值把一直读取的值给淘汰了
 // 优点：稳定淘汰，避免大量失效
 // 非线程安全，请根据业务加锁
 type Cache[K comparable, V any] struct {
-	entries      map[K]*list.Element[*Entry[K, V]]
-	probation    *list.List[*Entry[K, V]] // 试用段，容易淘汰
-	protected    *list.List[*Entry[K, V]] // 保护段，不容易淘汰
+	probation    *lru.Cache[K, V] // 淘汰段
+	protected    *lru.Cache[K, V] // 保护段
 	probationCap int
 	protectedCap int
-	onEvict      OnEvict[K, V]
 }
 
 func New[K comparable, V any](capacity int) *Cache[K, V] {
-	protectedCap := int(float64(capacity) * ProtectedPercentage)
-	probationCap := capacity - protectedCap
-	if probationCap < 1 {
-		panic("too small probation capacity")
-	}
-	if protectedCap < 1 {
-		panic("too small protected capacity")
-	}
+	probationCap, protectedCap := splitCap(capacity)
 	return &Cache[K, V]{
-		probation:    list.New[*Entry[K, V]](),
-		protected:    list.New[*Entry[K, V]](),
+		probation:    lru.New[K, V](capacity),
+		protected:    lru.New[K, V](protectedCap),
 		probationCap: probationCap,
-		protectedCap: probationCap,
+		protectedCap: protectedCap,
 	}
 }
 
 // 设置 OnEvict
-func (c *Cache[K, V]) SetOnEvict(onEvict OnEvict[K, V]) {
-	c.onEvict = onEvict
+func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
+	// 只有淘汰段的元素才会真正被淘汰，保护段的元素会先被淘汰到淘汰段
+	c.probation.SetOnEvict(onEvict)
 }
 
 // 添加或更新元素
 func (c *Cache[K, V]) Put(key K, value V) {
-	// 如果 key 已经存在，直接Get()更新元素状态
-	if elem, ok := c.entries[key]; ok {
-		elem.Value.Value = value
-		c.access(elem)
+	// 先看是否已经在保护段，如果是则更新即可
+	if c.protected.Contains(key) {
+		c.protected.Put(key, value)
 		return
 	}
 
-	// 如果已经到达最大尺寸，先剔除probation段的一个元素
-	if c.Full() {
-		c.evict(c.probation)
+	// 如果在淘汰段，则移动到保护段
+	if c.probation.Contains(key) {
+		c.moveToProtected(key, value)
+		return
 	}
 
-	// 添加元素到probation段
-	c.put(c.probation, &Entry[K, V]{
-		Key:         key,
-		Value:       value,
-		SegmentType: SegmentTypeProbation,
-	})
+	// 如果已经到达最大尺寸，先剔除淘汰段的一个元素
+	if c.Full() {
+		c.probation.Evict()
+	}
+
+	// 添加元素到淘汰段
+	c.probation.Put(key, value)
 }
 
 // 获取元素
 func (c *Cache[K, V]) Get(key K) (V, bool) {
-	// 如果存在则更新元素状态
-	if elem, ok := c.entries[key]; ok {
-		c.updateElement(elem)
-		return elem.Value.Value, true
+	// 先看是否已经在保护段，如果是则更新即可
+	if value, ok := c.protected.Get(key); ok {
+		return value, ok
+	}
+
+	// 如果在淘汰段，则移动到保护段
+	if value, ok := c.probation.Get(key); ok {
+		c.moveToProtected(key, value)
+		return value, true
 	}
 
 	// 不存在返回空值和false
@@ -100,9 +81,12 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 
 // 获取元素，不更新状态
 func (c *Cache[K, V]) Peek(key K) (V, bool) {
-	// 如果存在
-	if elem, ok := c.entries[key]; ok {
-		return elem.Value.Value, true
+	if value, ok := c.protected.Peek(key); ok {
+		return value, ok
+	}
+
+	if value, ok := c.probation.Peek(key); ok {
+		return value, true
 	}
 
 	// 不存在返回空值和false
@@ -112,137 +96,96 @@ func (c *Cache[K, V]) Peek(key K) (V, bool) {
 
 // 是否包含元素，不更新状态
 func (c *Cache[K, V]) Contains(key K) bool {
-	_, ok := c.entries[key]
-	return ok
+	return c.probation.Contains(key) || c.protected.Contains(key)
 }
 
 // 获取缓存的Keys
 func (c *Cache[K, V]) Keys() []K {
-	keys := make([]K, c.Len())
-	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
-		keys[i] = elem.Value.Key
-	}
-	return keys
+	fmt.Println("probation", c.probation.Keys())
+	fmt.Println("protected", c.protected.Keys())
+	return append(c.probation.Keys(), c.protected.Keys()...)
 }
 
 // 获取缓存的Values
 func (c *Cache[K, V]) Values() []V {
-	values := make([]V, c.Len())
-	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
-		values[i] = elem.Value.Value
-	}
-	return values
+	return append(c.probation.Values(), c.protected.Values()...)
 }
 
 // 获取缓存的Entries
-func (c *Cache[K, V]) Entries() []*Entry[K, V] {
-	entries := make([]*Entry[K, V], c.Len())
-	for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
-		entries[i] = elem.Value
-	}
-	return entries
+func (c *Cache[K, V]) Entries() []*cache.Entry[K, V] {
+	return append(c.probation.Entries(), c.protected.Entries()...)
 }
 
 // 移除元素
 func (c *Cache[K, V]) Remove(key K) bool {
-	if elem, ok := c.entries[key]; ok {
-		c.removeElement(elem)
+	if c.protected.Remove(key) {
+		return true
+	}
+	if c.probation.Remove(key) {
 		return true
 	}
 	return false
 }
 
+// 淘汰元素
+func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
+	if entry := c.probation.Evict(); entry != nil {
+		return entry
+	}
+	if entry := c.protected.Evict(); entry != nil {
+		return entry
+	}
+	return nil
+}
+
 // 清空缓存
 func (c *Cache[K, V]) Clear(needOnEvict bool) {
-	// 触发回调
-	if needOnEvict && c.onEvict != nil {
-		for elem, i := c.evictList.Back(), 0; elem != nil; elem, i = elem.Prev(), i+1 {
-			c.onEvict(elem.Value)
-		}
-	}
-
-	// 清空
-	c.entries = make(map[K]*list.Element[*Entry[K, V]])
-	c.evictList.Init()
+	c.probation.Clear(needOnEvict)
+	c.protected.Clear(needOnEvict)
 }
 
 // 改变容量
 func (c *Cache[K, V]) Resize(capacity int, needOnEvict bool) {
-	diff := c.Len() - capacity
-	if diff < 0 {
-		diff = 0
-	}
-	for i := 0; i < diff; i++ {
-		c.Evict()
-	}
-	c.capacity = capacity
+	_, protectedCap := splitCap(capacity)
+	c.probation.Resize(capacity, needOnEvict)
+	c.protected.Resize(protectedCap, needOnEvict)
 }
 
 // 元素个数
 func (c *Cache[K, V]) Len() int {
-	return len(c.entries)
+	return c.probation.Len() + c.protected.Len()
 }
 
 // 容量
 func (c *Cache[K, V]) Cap() int {
-	return c.capacity
+	return c.probationCap + c.protectedCap
 }
 
 // 缓存满了
 func (c *Cache[K, V]) Full() bool {
-	return c.probation.Full() && c.protected.Full()
+	return c.Len() == c.Cap()
 }
 
+// 移动到保护段
+func (c *Cache[K, V]) moveToProtected(key K, value V) {
+	// 从淘汰段移除
+	c.probation.Remove(key)
 
-
-// 添加元素
-func (c *Cache[K, V]) put(evictList *list.List[*Entry[K, V]], entry *Entry[K, V]) {
-	elem := evictList.PushFront(entry)
-	c.entries[entry.Key] = elem
-}
-
-// 移除节点
-func (c *Cache[K, V]) removeElement(evictList *list.List[*Entry[K, V]], elem *list.Element[*Entry[K, V]]) {
-	evictList.Remove(elem)
-	entry := elem.Value
-	delete(c.entries, entry.Key)
-}
-
-// 更新元素
-func (c *Cache[K, V]) access(elem *list.Element[*Entry[K, V]]) {
-	entry := elem.Value
-	// 在保护段则直接移动到头部即可
-	if entry.SegmentType == SegmentTypeProtected {
-		c.protected.MoveToFront(elem)
-		return
-	}
-
-	// 否则一定在试用段，需要提升到保护段
-	// 如果保护段满了，则把保护段的一个元素移动到试用段
+	// 如果保护段满了，则把保护段的一个元素移动到淘汰段
 	if c.protected.Len() == c.protectedCap {
 		// 从保护段淘汰一个元素
-		entry := c.protected.RemoveBack()
-		// 更新段类型
-		entry.SegmentType = SegmentTypeProbation
-		// 添加到试用段
-		c.entries[entry.Key] = c.probation.PushFront(entry)
+		entry := c.protected.Evict()
+		// 添加到淘汰段
+		c.probation.Put(entry.Key, entry.Value)
 	}
-	
-	// 从试用段移除
-	c.removeElement(c.probation, elem)
 
-	// 提升到
-	if 
+	// 添加到保护段
+	c.protected.Put(key, value)
 }
 
-// 淘汰元素
-func (c *Cache[K, V]) evict(evictList *list.List[*Entry[K, V]]) {
-	elem := evictList.Back()
-	if elem != nil {
-		c.removeElement(evictList, elem)
-		// 回调
-		if c.onEvict != nil {
-			c.onEvict(elem.Value)
-		}
-	}
+// 分割容量
+func splitCap(capacity int) (int, int) {
+	protectedCap := int(float64(capacity) * ProtectedPercentage)
+	probationCap := capacity - protectedCap
+	return probationCap, protectedCap
 }
