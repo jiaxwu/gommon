@@ -1,4 +1,4 @@
-package tinylfu
+package cm
 
 import (
 	"math"
@@ -20,7 +20,7 @@ var seeds = []uint64{0xc3a5c85c97cb3127, 0xb492b66fbe98f273, 0x9ae16a3b2f90404f,
 
 // 计数，类似于布隆过滤器，根据哈希映射到多个位置，然后在对应位置进行计数
 // 读取时拿对应位置最小的
-type CountMin struct {
+type Counter struct {
 	counters []uint64
 	mask     uint64
 	// 每计数多少次应该减少计数
@@ -29,12 +29,12 @@ type CountMin struct {
 	times uint64
 }
 
-func NewCountMin(width uint64) *CountMin {
+func New(width uint64) *Counter {
 	width = mmath.RoundUpPowOf2(width) / (64 / counterDepth / countBits)
 	if width < 1 {
 		width = 1
 	}
-	return &CountMin{
+	return &Counter{
 		counters: make([]uint64, width),
 		mask:     width - 1,
 		samples:  width * sampleFactor,
@@ -42,7 +42,7 @@ func NewCountMin(width uint64) *CountMin {
 }
 
 // 根据增加对应位置的计数
-func (c *CountMin) Count(hash uint64) {
+func (c *Counter) Count(hash uint64) {
 	start := (hash & 3) << 2
 
 	index0 := c.index(hash, 0)
@@ -64,7 +64,7 @@ func (c *CountMin) Count(hash uint64) {
 }
 
 // 估算对应hash的计数
-func (c *CountMin) Estimate(hash uint64) uint64 {
+func (c *Counter) Estimate(hash uint64) uint64 {
 	start := (hash & 3) << 2
 	minCount := uint64(math.MaxUint64)
 	for depth := uint64(0); depth < counterDepth; depth++ {
@@ -75,7 +75,7 @@ func (c *CountMin) Estimate(hash uint64) uint64 {
 	return minCount
 }
 
-func (c *CountMin) count(index, start uint64) bool {
+func (c *Counter) count(index, start uint64) bool {
 	offset := start << 2
 	mask := uint64(countBits*counterDepth-1) << offset
 	if c.counters[index]&mask != mask {
@@ -86,14 +86,14 @@ func (c *CountMin) count(index, start uint64) bool {
 }
 
 // 返回counters下标
-func (c *CountMin) index(hash, depth uint64) uint64 {
+func (c *Counter) index(hash, depth uint64) uint64 {
 	hash = (hash + seeds[depth]) * seeds[depth]
 	hash += (hash >> 32)
 	return hash & c.mask
 }
 
 // 计数减半
-func (c *CountMin) reset() {
+func (c *Counter) reset() {
 	for i, count := range c.counters {
 		if count != 0 {
 			c.counters[i] = (count >> 1) & 0x7777777777777777

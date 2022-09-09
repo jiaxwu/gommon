@@ -20,6 +20,9 @@
 # conv 
 类型转换
 
+# counter
+计数器
+
 # crypto
 加密算法
 
@@ -37,9 +40,6 @@
 
 # pool 
 对`sync.Pool`的泛型改造，`channel+select`实现的固定长度pool，分级对象池，以及`[]byte`和`bytes.Buffer`的字节对象池
-
-# qps
-基于滑动窗口的QPS统计
 
 # slices
 泛型slice工具
