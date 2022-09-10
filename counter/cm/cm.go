@@ -24,7 +24,8 @@ var seeds = []uint64{0xc3a5c85c97cb3127, 0xb492b66fbe98f273, 0x9ae16a3b2f90404f,
 // 读取时拿对应位置最小的
 type Counter struct {
 	counters []uint64
-	mask     uint64
+	// counters index掩码
+	mask uint64
 	// 每计数多少次应该减少计数
 	samples uint64
 	// Add()的次数
@@ -32,6 +33,7 @@ type Counter struct {
 }
 
 func New(width uint64) *Counter {
+	// 2的次方才能用掩码取下标
 	width = mmath.RoundUpPowOf2(width) / (64 / counterDepth / countBits)
 	if width < 1 {
 		width = 1
