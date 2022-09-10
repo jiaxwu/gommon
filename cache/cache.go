@@ -11,7 +11,12 @@ type Cache[K comparable, V any] interface {
 // 淘汰时触发
 type OnEvict[K comparable, V any] func(entry *Entry[K, V])
 
+// 缓存项
 type Entry[K comparable, V any] struct {
 	Key   K
 	Value V
+}
+
+// 基础缓存结构
+type BaseCache struct {
 }
