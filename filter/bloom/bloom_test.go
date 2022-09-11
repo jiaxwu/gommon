@@ -1,6 +1,7 @@
 package bloom
 
 import (
+	"strconv"
 	"testing"
 )
 
@@ -20,5 +21,22 @@ func TestNew(t *testing.T) {
 	}
 	if f.ContainsString("55") {
 		t.Errorf("want %v, but %v", false, f.ContainsString("10"))
+	}
+}
+
+func BenchmarkAddAndContains(b *testing.B) {
+	buf := make([]byte, 8192)
+	for length := 1; length <= cap(buf); length *= 2 {
+		b.Run(strconv.Itoa(length), func(b *testing.B) {
+			f := New(uint64(b.N), 0.0001)
+			buf = buf[:length]
+			b.SetBytes(int64(length))
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				f.Add(buf)
+				f.Contains(buf)
+			}
+		})
 	}
 }
