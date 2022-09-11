@@ -1,6 +1,7 @@
 package bloom
 
 import (
+	"encoding/binary"
 	"strconv"
 	"testing"
 )
@@ -38,5 +39,30 @@ func BenchmarkAddAndContains(b *testing.B) {
 				f.Contains(buf)
 			}
 		})
+	}
+}
+
+func TestFalsePositiveRate(t *testing.T) {
+	n := uint64(100000)
+	rounds := uint32(100000)
+	// We construct a new filter.
+	f := New(n, 0.01)
+	n1 := make([]byte, 4)
+	// We populate the filter with n values.
+	for i := uint32(0); i < uint32(n); i++ {
+		binary.BigEndian.PutUint32(n1, i)
+		f.Add(n1)
+	}
+	fp := 0
+	// test for number of rounds
+	for i := uint32(0); i < rounds; i++ {
+		binary.BigEndian.PutUint32(n1, i+uint32(n)+1)
+		if f.Contains(n1) {
+			fp++
+		}
+	}
+	fpRate := float64(fp) / (float64(rounds))
+	if !(fpRate >= 0.009 && fpRate <= 0.011) {
+		t.Errorf("fpRate not accuracy %v", fpRate)
 	}
 }
