@@ -6,6 +6,7 @@ import (
 
 // 哈希函数
 // 非线程安全，业务请加锁
+// 也就是对maphash的包装
 type Hasher struct {
 	h *maphash.Hash
 }
