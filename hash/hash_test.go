@@ -1,7 +1,10 @@
 package hash
 
 import (
+	"strconv"
 	"testing"
+
+	"github.com/jiaxwu/gommon/conv"
 )
 
 type Key struct {
@@ -10,101 +13,41 @@ type Key struct {
 }
 
 func TestStruct(t *testing.T) {
-	h := New[Key]()
-	a := h.Hash(Key{
+	h := New()
+	a := h.Sum64(conv.MustMarshal(Key{
 		S: "ab",
 		B: 6,
-	})
-	b := h.Hash(Key{
+	}))
+	b := h.Sum64(conv.MustMarshal(Key{
 		S: "ab",
 		B: 6,
-	})
-	if a != b {
-		t.Errorf("want %v, but %v", a, b)
-	}
-}
-
-func TestPointer(t *testing.T) {
-	h := New[*Key]()
-	k := &Key{
-		S: "ab",
-		B: 6,
-	}
-	a := h.Hash(k)
-	b := h.Hash(k)
-	if a != b {
-		t.Errorf("want %v, but %v", a, b)
-	}
-}
-
-func TestInt(t *testing.T) {
-	h := New[int]()
-	a := h.Hash(32)
-	b := h.Hash(32)
-	if a != b {
-		t.Errorf("want %v, but %v", a, b)
-	}
-}
-
-func TestInt8(t *testing.T) {
-	h := New[int8]()
-	a := h.Hash(32)
-	b := h.Hash(32)
-	if a != b {
-		t.Errorf("want %v, but %v", a, b)
-	}
-}
-
-func TestInt16(t *testing.T) {
-	h := New[int16]()
-	a := h.Hash(32)
-	b := h.Hash(32)
-	if a != b {
-		t.Errorf("want %v, but %v", a, b)
-	}
-}
-
-func TestInt32(t *testing.T) {
-	h := New[int32]()
-	a := h.Hash(32)
-	b := h.Hash(32)
-	if a != b {
-		t.Errorf("want %v, but %v", a, b)
-	}
-}
-
-func TestInt64(t *testing.T) {
-	h := New[int64]()
-	a := h.Hash(32)
-	b := h.Hash(32)
-	if a != b {
-		t.Errorf("want %v, but %v", a, b)
-	}
-}
-
-func TestFloat32(t *testing.T) {
-	h := New[float32]()
-	a := h.Hash(32.1)
-	b := h.Hash(32.1)
-	if a != b {
-		t.Errorf("want %v, but %v", a, b)
-	}
-}
-
-func TestFloat64(t *testing.T) {
-	h := New[float64]()
-	a := h.Hash(32.2)
-	b := h.Hash(32.2)
+	}))
 	if a != b {
 		t.Errorf("want %v, but %v", a, b)
 	}
 }
 
 func TestString(t *testing.T) {
-	h := New[string]()
-	a := h.Hash("bz")
-	b := h.Hash("bz")
+	h := New()
+	a := h.Sum64String("bz")
+	b := h.Sum64String("bz")
 	if a != b {
 		t.Errorf("want %v, but %v", a, b)
+	}
+}
+
+func Benchmark64(b *testing.B) {
+	buf := make([]byte, 8192)
+	for length := 1; length <= cap(buf); length *= 2 {
+		b.Run(strconv.Itoa(length), func(b *testing.B) {
+			h := New()
+			buf = buf[:length]
+			b.SetBytes(int64(length))
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				h.Sum64(buf)
+			}
+		})
 	}
 }
