@@ -4,6 +4,8 @@ import (
 	"math"
 
 	"github.com/jiaxwu/gommon/hash"
+
+	mmath "github.com/jiaxwu/gommon/math"
 )
 
 // 布隆过滤器
@@ -21,16 +23,10 @@ func New(capacity uint64, falsePositiveRate float64) *Filter {
 	// bit数量
 	ln2 := math.Log(2.0)
 	factor := -math.Log(falsePositiveRate) / (ln2 * ln2)
-	bitsCnt := uint64(float64(capacity) * factor)
-	if bitsCnt == 0 {
-		bitsCnt = 1
-	}
+	bitsCnt := mmath.Max(1, uint64(float64(capacity)*factor))
 
 	// 哈希函数数量
-	hashsCnt := int(ln2 * float64(bitsCnt) / float64(capacity))
-	if hashsCnt < 1 {
-		hashsCnt = 1
-	}
+	hashsCnt := mmath.Max(1, int(ln2*float64(bitsCnt)/float64(capacity)))
 	hashs := make([]*hash.Hash, hashsCnt)
 	for i := 0; i < hashsCnt; i++ {
 		hashs[i] = hash.New()
