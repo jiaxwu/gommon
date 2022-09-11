@@ -12,10 +12,9 @@ import (
 // https://llimllib.github.io/bloomfilter-tutorial/
 // https://github.com/bits-and-blooms/bloom/blob/master/bloom.go
 type Filter struct {
-	bits     []uint64 // bit数组
-	bitsMask uint64   // bit数组掩码，也就是bits数组长度-1，用于快速取模
-	hashs    uint64   // 不同哈希函数数量
-	hasher   *hash.Hasher
+	bits     []uint64     // bit数组
+	bitsMask uint64       // bit数组掩码，也就是bits数组长度-1，用于快速取模
+	hashs    []*hash.Hash // 不同哈希函数
 }
 
 // capacity：容量
@@ -31,63 +30,54 @@ func New(capacity uint64, falsePositiveRate float64) *Filter {
 	bitsMask := bits - 1
 
 	// 哈希函数数量
-	hashs := uint64(ln2 * float64(bits) / float64(capacity))
-	if hashs < 1 {
-		hashs = 1
+	hashsLen := int(ln2 * float64(bits) / float64(capacity))
+	if hashsLen < 1 {
+		hashsLen = 1
+	}
+	hashs := make([]*hash.Hash, hashsLen)
+	for i := 0; i < hashsLen; i++ {
+		hashs[i] = hash.New()
 	}
 
 	return &Filter{
 		bits:     make([]uint64, (bits+63)/64),
 		bitsMask: bitsMask,
 		hashs:    hashs,
-		hasher:   hash.New(),
 	}
 }
 
 // 添加
-// 如果可能存在则返回true
-func (f *Filter) Add(b []byte) bool {
-	return f.AddHash(f.hasher.Sum64(b))
-}
-
-func (f *Filter) AddString(s string) bool {
-	return f.Add([]byte(s))
-}
-
-func (f *Filter) AddHash(hash uint64) bool {
-	exists := true
-	for i := uint64(0); i < f.hashs; i++ {
-		exists = f.set((hash+i*(hash>>32))&f.bitsMask) && exists
+func (f *Filter) Add(b []byte) {
+	for _, h := range f.hashs {
+		hashValue := h.Sum64(b)
+		f.set(hashValue & f.bitsMask)
 	}
-	return exists
+}
+
+func (f *Filter) AddString(s string) {
+	f.Add([]byte(s))
 }
 
 // 如果可能存在则返回true
 func (f *Filter) Contains(b []byte) bool {
-	return f.ContainsHash(f.hasher.Sum64(b))
+	exists := true
+	for _, h := range f.hashs {
+		hashValue := h.Sum64(b)
+		exists = f.get(hashValue&f.bitsMask) && exists
+	}
+	return exists
 }
 
 func (f *Filter) ContainsString(s string) bool {
 	return f.Contains([]byte(s))
 }
 
-func (f *Filter) ContainsHash(hash uint64) bool {
-	exists := true
-	for i := uint64(0); i < f.hashs; i++ {
-		exists = f.get((hash+i*(hash>>32))&f.bitsMask) && exists
-	}
-	return exists
-}
-
 // 设置对应下标的值
 // 如果对应下标已经为1则返回true
-func (f *Filter) set(index uint64) bool {
+func (f *Filter) set(index uint64) {
 	idx := index / 64
 	shift := index % 64
-	val := f.bits[idx]
-	mask := uint64(1) << shift
-	f.bits[idx] |= mask
-	return (val&mask)>>shift == 1
+	f.bits[idx] |= 1 << shift
 }
 
 // 获取对应下标的值
