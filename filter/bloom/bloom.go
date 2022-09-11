@@ -4,17 +4,15 @@ import (
 	"math"
 
 	"github.com/jiaxwu/gommon/hash"
-
-	mmath "github.com/jiaxwu/gommon/math"
 )
 
 // 布隆过滤器
 // https://llimllib.github.io/bloomfilter-tutorial/
 // https://github.com/bits-and-blooms/bloom/blob/master/bloom.go
 type Filter struct {
-	bits     []uint64     // bit数组
-	bitsMask uint64       // bit数组掩码，也就是bits数组长度-1，用于快速取模
-	hashs    []*hash.Hash // 不同哈希函数
+	bits    []uint64     // bit数组
+	bitsCnt uint64       // bit位数
+	hashs   []*hash.Hash // 不同哈希函数
 }
 
 // capacity：容量
@@ -23,26 +21,25 @@ func New(capacity uint64, falsePositiveRate float64) *Filter {
 	// bit数量
 	ln2 := math.Log(2.0)
 	factor := -math.Log(falsePositiveRate) / (ln2 * ln2)
-	bits := mmath.RoundUpPowOf2(uint64(float64(capacity) * factor))
-	if bits == 0 {
-		bits = 1
+	bitsCnt := uint64(float64(capacity) * factor)
+	if bitsCnt == 0 {
+		bitsCnt = 1
 	}
-	bitsMask := bits - 1
 
 	// 哈希函数数量
-	hashsLen := int(ln2 * float64(bits) / float64(capacity))
-	if hashsLen < 1 {
-		hashsLen = 1
+	hashsCnt := int(ln2 * float64(bitsCnt) / float64(capacity))
+	if hashsCnt < 1 {
+		hashsCnt = 1
 	}
-	hashs := make([]*hash.Hash, hashsLen)
-	for i := 0; i < hashsLen; i++ {
+	hashs := make([]*hash.Hash, hashsCnt)
+	for i := 0; i < hashsCnt; i++ {
 		hashs[i] = hash.New()
 	}
 
 	return &Filter{
-		bits:     make([]uint64, (bits+63)/64),
-		bitsMask: bitsMask,
-		hashs:    hashs,
+		bits:    make([]uint64, (bitsCnt+63)/64),
+		bitsCnt: bitsCnt,
+		hashs:   hashs,
 	}
 }
 
@@ -50,7 +47,7 @@ func New(capacity uint64, falsePositiveRate float64) *Filter {
 func (f *Filter) Add(b []byte) {
 	for _, h := range f.hashs {
 		hashValue := h.Sum64(b)
-		f.set(hashValue & f.bitsMask)
+		f.set(hashValue % f.bitsCnt)
 	}
 }
 
@@ -63,7 +60,7 @@ func (f *Filter) Contains(b []byte) bool {
 	exists := true
 	for _, h := range f.hashs {
 		hashValue := h.Sum64(b)
-		exists = f.get(hashValue&f.bitsMask) && exists
+		exists = f.get(hashValue%f.bitsCnt) && exists
 	}
 	return exists
 }
