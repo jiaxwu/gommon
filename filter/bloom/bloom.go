@@ -43,7 +43,7 @@ func New(capacity uint64, falsePositiveRate float64) *Filter {
 	}
 }
 
-// 添加
+// 添加元素
 func (f *Filter) Add(b []byte) {
 	for _, h := range f.hashs {
 		hashValue := h.Sum64(b)
@@ -51,11 +51,14 @@ func (f *Filter) Add(b []byte) {
 	}
 }
 
+// 添加元素
+// 字符串类型
 func (f *Filter) AddString(s string) {
 	f.Add([]byte(s))
 }
 
-// 如果可能存在则返回true
+// 元素是否存在
+// true表示可能存在
 func (f *Filter) Contains(b []byte) bool {
 	exists := true
 	for _, h := range f.hashs {
@@ -65,8 +68,17 @@ func (f *Filter) Contains(b []byte) bool {
 	return exists
 }
 
+// 元素是否存在
+// 字符串类型
 func (f *Filter) ContainsString(s string) bool {
 	return f.Contains([]byte(s))
+}
+
+// 清空过滤器
+func (f *Filter) Reset() {
+	for i := range f.bits {
+		f.bits[i] = 0
+	}
 }
 
 // 设置对应下标的值
@@ -85,11 +97,4 @@ func (f *Filter) get(index uint64) bool {
 	val := f.bits[idx]
 	mask := uint64(1) << shift
 	return (val&mask)>>shift == 1
-}
-
-// 清空过滤器
-func (f *Filter) Reset() {
-	for i := range f.bits {
-		f.bits[i] = 0
-	}
 }
