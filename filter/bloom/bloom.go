@@ -71,7 +71,7 @@ func (f *Filter) ContainsString(s string) bool {
 }
 
 // 清空过滤器
-func (f *Filter) Reset() {
+func (f *Filter) Clear() {
 	for i := range f.bits {
 		f.bits[i] = 0
 	}
