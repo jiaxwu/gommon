@@ -8,6 +8,8 @@ import (
 	mmath "github.com/jiaxwu/gommon/math"
 )
 
+const uint64Bits = 64
+
 // 布隆过滤器
 // https://llimllib.github.io/bloomfilter-tutorial/
 // https://github.com/bits-and-blooms/bloom/blob/master/bloom.go
@@ -42,8 +44,8 @@ func New(capacity uint64, falsePositiveRate float64) *Filter {
 // 添加元素
 func (f *Filter) Add(b []byte) {
 	for _, h := range f.hashs {
-		hashValue := h.Sum64(b)
-		f.set(hashValue % f.bitsCnt)
+		index, offset := f.pos(h, b)
+		f.bits[index] |= 1 << offset
 	}
 }
 
@@ -56,12 +58,15 @@ func (f *Filter) AddString(s string) {
 // 元素是否存在
 // true表示可能存在
 func (f *Filter) Contains(b []byte) bool {
-	exists := true
 	for _, h := range f.hashs {
-		hashValue := h.Sum64(b)
-		exists = f.get(hashValue%f.bitsCnt) && exists
+		index, offset := f.pos(h, b)
+		mask := uint64(1) << offset
+		// 判断这一位是否位1
+		if (f.bits[index] & mask) != mask {
+			return false
+		}
 	}
-	return exists
+	return true
 }
 
 // 元素是否存在
@@ -77,20 +82,14 @@ func (f *Filter) Clear() {
 	}
 }
 
-// 设置对应下标的值
-// 如果对应下标已经为1则返回true
-func (f *Filter) set(index uint64) {
-	idx := index / 64
-	shift := index % 64
-	f.bits[idx] |= 1 << shift
-}
-
-// 获取对应下标的值
-// 如果1返回true
-func (f *Filter) get(index uint64) bool {
-	idx := index / 64
-	shift := index % 64
-	val := f.bits[idx]
-	mask := uint64(1) << shift
-	return (val&mask)>>shift == 1
+// 获取对应元素下标和偏移
+func (f *Filter) pos(h *hash.Hash, b []byte) (uint64, uint64) {
+	hashValue := h.Sum64(b)
+	// 按照位计算的偏移
+	bitsIndex := hashValue % f.bitsCnt
+	// 因为一个元素64位，因此需要转换
+	index := bitsIndex / uint64Bits
+	// 在一个元素里面的偏移
+	offset := bitsIndex % uint64Bits
+	return index, offset
 }
