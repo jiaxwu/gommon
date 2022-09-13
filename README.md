@@ -41,6 +41,9 @@
 # math
 一些数值工具
 
+# mem
+快速的泛型memset()操作
+
 # pool 
 对`sync.Pool`的泛型改造，`channel+select`实现的固定长度pool，分级对象池，以及`[]byte`和`bytes.Buffer`的字节对象池
 
