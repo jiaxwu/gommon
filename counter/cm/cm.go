@@ -1,7 +1,6 @@
 package cm
 
 import (
-	"fmt"
 	"math"
 
 	"github.com/jiaxwu/gommon/hash"
@@ -23,12 +22,12 @@ type Counter[T constraints.Unsigned] struct {
 }
 
 // 创建一个计数器
-// capacity：元素个数
-// expectedError：预期错误范围（会超过真实计数值）
+// size：数据流大小
+// errorRange：计数值误差范围（会超过真实计数值）
 // errorRate：错误率
-func New[T constraints.Unsigned](capacity, expectedError uint64, errorRate float64) *Counter[T] {
+func New[T constraints.Unsigned](size uint64, errorRange T, errorRate float64) *Counter[T] {
 	// 计数器长度
-	countersLen := uint64(math.Ceil(math.E / (float64(expectedError) / float64(capacity))))
+	countersLen := uint64(math.Ceil(math.E / (float64(errorRange) / float64(size))))
 	// 哈希个数
 	hashsCnt := int(math.Ceil(math.Log(1.0 / errorRate)))
 	hashs := make([]*hash.Hash, hashsCnt)
@@ -37,8 +36,6 @@ func New[T constraints.Unsigned](capacity, expectedError uint64, errorRate float
 		hashs[i] = hash.New()
 		counters[i] = make([]T, countersLen)
 	}
-	fmt.Println(countersLen)
-	fmt.Println(hashsCnt)
 	return &Counter[T]{
 		counters:    counters,
 		countersLen: countersLen,
@@ -83,7 +80,11 @@ func (c *Counter[T]) Estimate(b []byte) T {
 	minCount := c.maxCount
 	for i, h := range c.hashs {
 		index := h.Sum64(b) % c.countersLen
-		minCount = mmath.Min(minCount, c.counters[i][index])
+		count := c.counters[i][index]
+		if count == 0 {
+			return 0
+		}
+		minCount = mmath.Min(minCount, count)
 	}
 	return minCount
 }
