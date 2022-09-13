@@ -8,6 +8,7 @@ import (
 	mmath "github.com/jiaxwu/gommon/math"
 )
 
+// uint64的位数
 const uint64Bits = 64
 
 // 布隆过滤器
@@ -25,7 +26,9 @@ func New(capacity uint64, falsePositiveRate float64) *Filter {
 	// bit数量
 	ln2 := math.Log(2.0)
 	factor := -math.Log(falsePositiveRate) / (ln2 * ln2)
-	bitsCnt := mmath.Max(1, uint64(float64(capacity)*factor))
+	bitsCnt := mmath.Max(uint64Bits, uint64(float64(capacity)*factor))
+	// 这里扩大到最后一个uint64大小，避免浪费
+	bitsCnt = (bitsCnt + uint64Bits - 1) / uint64Bits * uint64Bits
 
 	// 哈希函数数量
 	hashsCnt := mmath.Max(1, int(ln2*float64(bitsCnt)/float64(capacity)))
@@ -35,7 +38,7 @@ func New(capacity uint64, falsePositiveRate float64) *Filter {
 	}
 
 	return &Filter{
-		bits:    make([]uint64, (bitsCnt+63)/64),
+		bits:    make([]uint64, bitsCnt),
 		bitsCnt: bitsCnt,
 		hashs:   hashs,
 	}
