@@ -1,104 +1,109 @@
 package cm
 
 import (
+	"fmt"
 	"math"
 
+	"github.com/jiaxwu/gommon/hash"
 	mmath "github.com/jiaxwu/gommon/math"
+	"github.com/jiaxwu/gommon/mem"
+	"golang.org/x/exp/constraints"
 )
 
-const (
-	// 一个计数需要多少位表示
-	countBits uint64 = 4
-	// 一个计数哈希到多少个槽
-	counterDepth uint64 = 4
-	// 计数掩码
-	countMask uint64 = countBits*counterDepth - 1
-	// 采样因子，也就是平均多少次计数Reset()一次
-	sampleFactor uint64 = 8
-)
-
-// 种子
-var seeds = []uint64{0xc3a5c85c97cb3127, 0xb492b66fbe98f273, 0x9ae16a3b2f90404f, 0xcbf29ce484222325}
-
-// 计数器，原理类似于布隆过滤器，根据哈希映射到多个位置，然后在对应位置进行计数
+// Count-Min Sketch 计数器，原理类似于布隆过滤器，根据哈希映射到多个位置，然后在对应位置进行计数
 // 读取时拿对应位置最小的
-type Counter struct {
-	counters []uint64
-	// counters index掩码
-	mask uint64
-	// 每计数多少次应该减少计数
-	samples uint64
-	// Add()的次数
-	additions uint64
+// 适合需要一个比较小的计数，而且不需要这个计数一定准确的情况
+// 可以减少空间消耗
+// https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.591.8351&rep=rep1&type=pdf
+type Counter[T constraints.Unsigned] struct {
+	counters    [][]T
+	countersLen uint64       // 计数器长度
+	hashs       []*hash.Hash // 哈希函数列表
+	maxCount    T            // 最大计数值
 }
 
-func New(width uint64) *Counter {
-	// 2的次方才能用掩码取下标
-	width = mmath.RoundUpPowOf2(width) / (64 / counterDepth / countBits)
-	if width < 1 {
-		width = 1
+// 创建一个计数器
+// capacity：元素个数
+// expectedError：预期错误范围（会超过真实计数值）
+// errorRate：错误率
+func New[T constraints.Unsigned](capacity, expectedError uint64, errorRate float64) *Counter[T] {
+	// 计数器长度
+	countersLen := uint64(math.Ceil(math.E / (float64(expectedError) / float64(capacity))))
+	// 哈希个数
+	hashsCnt := int(math.Ceil(math.Log(1.0 / errorRate)))
+	hashs := make([]*hash.Hash, hashsCnt)
+	counters := make([][]T, hashsCnt)
+	for i := 0; i < hashsCnt; i++ {
+		hashs[i] = hash.New()
+		counters[i] = make([]T, countersLen)
 	}
-	return &Counter{
-		counters: make([]uint64, width),
-		mask:     width - 1,
-		samples:  width * sampleFactor,
+	fmt.Println(countersLen)
+	fmt.Println(hashsCnt)
+	return &Counter[T]{
+		counters:    counters,
+		countersLen: countersLen,
+		hashs:       hashs,
+		maxCount:    T(0) - 1,
 	}
 }
 
-// 根据增加对应位置的计数
-func (c *Counter) Add(hash uint64) {
-	added := false
-	for depth := uint64(0); depth < counterDepth; depth++ {
-		index, offset := c.pos(hash, depth)
-		added = c.add(index, offset) || added
-	}
-
-	if added {
-		c.additions++
-		if c.additions == c.samples {
-			c.Reset()
+// 增加元素的计数
+func (c *Counter[T]) Add(b []byte, val T) {
+	for i, h := range c.hashs {
+		index := h.Sum64(b) % c.countersLen
+		if c.counters[i][index]+val <= c.counters[i][index] {
+			c.counters[i][index] = c.maxCount
+		} else {
+			c.counters[i][index] += val
 		}
 	}
 }
 
-// 估算对应hash的计数
-func (c *Counter) Estimate(hash uint64) uint64 {
-	minCount := uint64(math.MaxUint64)
-	for depth := uint64(0); depth < counterDepth; depth++ {
-		index, offset := c.pos(hash, depth)
-		count := (c.counters[index] >> offset) & countMask
-		minCount = mmath.Min(minCount, count)
+// 增加元素的计数
+// 等同于Add(b, 1)
+func (c *Counter[T]) Inc(b []byte) {
+	c.Add(b, 1)
+}
+
+// 增加元素的计数
+// 字符串类型
+func (c *Counter[T]) AddString(s string, val T) {
+	c.Add([]byte(s), val)
+}
+
+// 增加元素的计数
+// 等同于Add(b, 1)
+// 字符串类型
+func (c *Counter[T]) IncString(s string) {
+	c.Add([]byte(s), 1)
+}
+
+// 估算元素的计数
+func (c *Counter[T]) Estimate(b []byte) T {
+	minCount := c.maxCount
+	for i, h := range c.hashs {
+		index := h.Sum64(b) % c.countersLen
+		minCount = mmath.Min(minCount, c.counters[i][index])
 	}
 	return minCount
 }
 
-// 计数减半
-func (c *Counter) Reset() {
-	for i, count := range c.counters {
-		if count != 0 {
-			c.counters[i] = (count >> 1) & 0x7777777777777777
+// 估算元素的计数
+// 字符串类型
+func (c *Counter[T]) EstimateString(s string) T {
+	return c.Estimate([]byte(s))
+}
+
+// 计数衰减
+// 如果factor为0则直接清空
+func (c *Counter[T]) Attenuation(factor T) {
+	for _, counter := range c.counters {
+		if factor == 0 {
+			mem.Memset(counter, 0)
+		} else {
+			for j := uint64(0); j < c.countersLen; j++ {
+				counter[j] /= factor
+			}
 		}
 	}
-	c.additions = 0
-}
-
-// 增加对应下标和偏移的计数
-func (c *Counter) add(index, offset uint64) bool {
-	mask := countMask << offset
-	if c.counters[index]&mask != mask {
-		c.counters[index] += 1 << offset
-		return true
-	}
-	return false
-}
-
-// 返回hash在counters的位置
-// index是数组下标
-// offset是对应元素的偏移
-func (c *Counter) pos(hash, depth uint64) (index uint64, offset uint64) {
-	hash = (hash + seeds[depth]) * seeds[depth]
-	hash += (hash >> 32)
-	index = hash & c.mask
-	offset = ((hash&(counterDepth-1))*counterDepth + depth) * countBits
-	return
 }

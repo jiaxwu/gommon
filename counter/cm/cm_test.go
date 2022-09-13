@@ -1,43 +1,50 @@
 package cm
 
-import (
-	"testing"
-)
+import "testing"
 
 func TestCount(t *testing.T) {
-	cm := New(10)
-	cm.Add(10)
-	cm.Add(51151)
-	cm.Add(321)
-	cm.Add(10)
-	cm.Add(10)
-	cm.Add(321)
-	if cm.Estimate(10) != 3 {
-		t.Errorf("want %v, but %d", 3, cm.Estimate(10))
+	cm := New[uint8](1000, 10, 0.001)
+	cm.IncString("10")
+	cm.IncString("51151")
+	cm.IncString("321")
+	cm.IncString("10")
+	cm.IncString("10")
+	cm.IncString("321")
+	if cm.EstimateString("10") != 3 {
+		t.Errorf("want %v, but %d", 3, cm.EstimateString("10"))
 	}
-	if cm.Estimate(321) != 2 {
-		t.Errorf("want %v, but %d", 2, cm.Estimate(321))
+	if cm.EstimateString("321") != 2 {
+		t.Errorf("want %v, but %d", 2, cm.EstimateString("321"))
 	}
-	if cm.Estimate(51151) != 1 {
-		t.Errorf("want %v, but %d", 1, cm.Estimate(1))
+	if cm.EstimateString("51151") != 1 {
+		t.Errorf("want %v, but %d", 1, cm.EstimateString("1"))
 	}
 
-	for i := 0; i < 100; i++ {
-		cm.Add(10)
+	cm.AddString("10", 100)
+	if cm.EstimateString("10") != 103 {
+		t.Errorf("want %v, but %d", 103, cm.EstimateString("10"))
 	}
-	if cm.Estimate(10) != 15 {
-		t.Errorf("want %v, but %d", 15, cm.Estimate(10))
+	cm.AddString("10", 254)
+	if cm.EstimateString("10") != 255 {
+		t.Errorf("want %v, but %d", 255, cm.EstimateString("10"))
 	}
-	for i := 0; i < 100; i++ {
-		cm.Add(5)
+	cm.AddString("5", 100)
+	if cm.EstimateString("5") != 100 {
+		t.Errorf("want %v, but %d", 100, cm.EstimateString("5"))
 	}
-	if cm.Estimate(10) != 7 {
-		t.Errorf("want %v, but %d", 7, cm.Estimate(10))
+	cm.AddString("1", 100)
+	if cm.EstimateString("1") != 100 {
+		t.Errorf("want %v, but %d", 100, cm.EstimateString("1"))
 	}
-	for i := 0; i < 100; i++ {
-		cm.Add(uint64(1))
+
+	cm.Attenuation(2)
+	if cm.EstimateString("10") != 127 {
+		t.Errorf("want %v, but %d", 127, cm.EstimateString("10"))
 	}
-	if cm.Estimate(10) != 7 {
-		t.Errorf("want %v, but %d", 7, cm.Estimate(10))
+	if cm.EstimateString("5") != 50 {
+		t.Errorf("want %v, but %d", 50, cm.EstimateString("5"))
+	}
+	if cm.EstimateString("1") != 50 {
+		t.Errorf("want %v, but %d", 50, cm.EstimateString("1"))
 	}
 }
