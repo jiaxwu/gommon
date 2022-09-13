@@ -4,8 +4,6 @@ import (
 	"math"
 
 	"github.com/jiaxwu/gommon/hash"
-
-	mmath "github.com/jiaxwu/gommon/math"
 )
 
 // uint64的位数
@@ -24,14 +22,13 @@ type Filter struct {
 // falsePositiveRate：误判率
 func New(capacity uint64, falsePositiveRate float64) *Filter {
 	// bit数量
-	ln2 := math.Log(2.0)
-	factor := -math.Log(falsePositiveRate) / (ln2 * ln2)
-	bitsCnt := mmath.Max(uint64Bits, uint64(float64(capacity)*factor))
+	factor := -math.Log(falsePositiveRate) / (math.Ln2 * math.Ln2)
+	bitsCnt := uint64(math.Ceil(float64(capacity) * factor))
 	// 这里扩大到最后一个uint64大小，避免浪费
 	bitsCnt = (bitsCnt + uint64Bits - 1) / uint64Bits * uint64Bits
 
 	// 哈希函数数量
-	hashsCnt := mmath.Max(1, int(ln2*float64(bitsCnt)/float64(capacity)))
+	hashsCnt := int(math.Ceil(math.Ln2 * float64(bitsCnt) / float64(capacity)))
 	hashs := make([]*hash.Hash, hashsCnt)
 	for i := 0; i < hashsCnt; i++ {
 		hashs[i] = hash.New()
