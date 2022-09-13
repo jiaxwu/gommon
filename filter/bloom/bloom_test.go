@@ -47,13 +47,16 @@ func TestFalsePositiveRate(t *testing.T) {
 	rounds := uint32(100000)
 	falsePositiveRate := 0.01
 	f := New(capacity, falsePositiveRate)
+	// 加入过滤器一些元素
 	item := make([]byte, 4)
 	for i := uint32(0); i < uint32(capacity); i++ {
 		binary.BigEndian.PutUint32(item, i)
 		f.Add(item)
 	}
+	// 查询不存在的元素，计算错误率
 	falsePositiveCount := 0
 	for i := uint32(0); i < rounds; i++ {
+		// 加上容量保证这个元素一定不是之前加入过滤器的
 		binary.BigEndian.PutUint32(item, i+uint32(capacity)+1)
 		if f.Contains(item) {
 			falsePositiveCount++
