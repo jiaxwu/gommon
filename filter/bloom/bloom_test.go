@@ -43,26 +43,24 @@ func BenchmarkAddAndContains(b *testing.B) {
 }
 
 func TestFalsePositiveRate(t *testing.T) {
-	n := uint64(100000)
+	capacity := uint64(100000)
 	rounds := uint32(100000)
-	// We construct a new filter.
-	f := New(n, 0.01)
-	n1 := make([]byte, 4)
-	// We populate the filter with n values.
-	for i := uint32(0); i < uint32(n); i++ {
-		binary.BigEndian.PutUint32(n1, i)
-		f.Add(n1)
+	falsePositiveRate := 0.01
+	f := New(capacity, falsePositiveRate)
+	item := make([]byte, 4)
+	for i := uint32(0); i < uint32(capacity); i++ {
+		binary.BigEndian.PutUint32(item, i)
+		f.Add(item)
 	}
-	fp := 0
-	// test for number of rounds
+	falsePositiveCount := 0
 	for i := uint32(0); i < rounds; i++ {
-		binary.BigEndian.PutUint32(n1, i+uint32(n)+1)
-		if f.Contains(n1) {
-			fp++
+		binary.BigEndian.PutUint32(item, i+uint32(capacity)+1)
+		if f.Contains(item) {
+			falsePositiveCount++
 		}
 	}
-	fpRate := float64(fp) / (float64(rounds))
-	if !(fpRate >= 0.009 && fpRate <= 0.011) {
+	fpRate := float64(falsePositiveCount) / (float64(rounds))
+	if !(fpRate >= falsePositiveRate-0.001 && fpRate <= falsePositiveRate+0.001) {
 		t.Errorf("fpRate not accuracy %v", fpRate)
 	}
 }
