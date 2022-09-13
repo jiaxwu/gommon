@@ -38,7 +38,7 @@ func New(capacity uint64, falsePositiveRate float64) *Filter {
 	}
 
 	return &Filter{
-		bits:    make([]uint64, bitsCnt),
+		bits:    make([]uint64, bitsCnt/uint64Bits),
 		bitsCnt: bitsCnt,
 		hashs:   hashs,
 	}
