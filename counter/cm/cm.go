@@ -108,3 +108,8 @@ func (c *Counter[T]) Attenuation(factor T) {
 		}
 	}
 }
+
+// 计数器长度
+func (c *Counter[T]) Len() uint64 {
+	return c.countersLen
+}

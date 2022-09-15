@@ -31,7 +31,7 @@ func New4(size uint64, errorRange uint8, errorRate float64) *Counter4 {
 		panic("too large errorRange")
 	}
 	// 计数器长度
-	countersLen := uint64(math.Ceil(math.E / (float64(errorRange) / float64(size) / (64 / counter4Bits))))
+	countersLen := uint64(math.Ceil(math.E / (float64(errorRange) / float64(size)) / (64 / counter4Bits)))
 	// 哈希个数
 	hashsCnt := int(math.Ceil(math.Log(1 / errorRate)))
 	hashs := make([]*hash.Hash, hashsCnt)
@@ -107,13 +107,18 @@ func (c *Counter4) Attenuation(factor uint8) {
 			mem.Memset(counter, 0)
 		} else {
 			for index := uint64(0); index < c.countersLen; index++ {
-				for offset := uint64(0); offset < 64; offset += 4 {
+				for offset := uint64(0); offset < 64; offset += counter4Bits {
 					count := c.getCount(counter, index, offset) / uint64(factor)
 					c.setCount(counter, index, offset, count)
 				}
 			}
 		}
 	}
+}
+
+// 计数器长度
+func (c *Counter4) Len() uint64 {
+	return c.countersLen * (64 / counter4Bits)
 }
 
 // 返回位置

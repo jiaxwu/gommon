@@ -82,6 +82,11 @@ func (f *Filter) Clear() {
 	}
 }
 
+// bit位数
+func (f *Filter) Len() uint64 {
+	return f.bitsCnt
+}
+
 // 获取对应元素下标和偏移
 func (f *Filter) pos(h *hash.Hash, b []byte) (uint64, uint64) {
 	hashValue := h.Sum64(b)
