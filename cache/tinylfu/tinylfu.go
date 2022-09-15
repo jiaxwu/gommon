@@ -1,7 +1,7 @@
 package tinylfu
 
 import (
-	"fmt"
+	"github.com/jiaxwu/gommon/math"
 
 	"github.com/jiaxwu/gommon/cache"
 	"github.com/jiaxwu/gommon/cache/lru"
@@ -24,9 +24,10 @@ const (
 )
 
 // 转换成[]byte
-type BytesFunc[T comparable] func(t T) []byte
+type BytesFunc[T comparable] func(key T) []byte
 
 // W-TinyLFU
+// 没有充分测试，只做学习参考
 // 非线程安全，请根据业务加锁
 // https://arxiv.org/pdf/1512.00727v2.pdf
 type Cache[K comparable, V any] struct {
@@ -40,7 +41,7 @@ type Cache[K comparable, V any] struct {
 }
 
 func New[K comparable, V any](bytesFunc BytesFunc[K], capacity int) *Cache[K, V] {
-	windowCap := int(0.01 * float64(capacity))
+	windowCap := math.Max(int(windowPercentage*float64(capacity)), 1)
 	mainCap := capacity - windowCap
 
 	return &Cache[K, V]{
@@ -53,45 +54,53 @@ func New[K comparable, V any](bytesFunc BytesFunc[K], capacity int) *Cache[K, V]
 	}
 }
 
-// 设置 OnEvict
+// // 设置 OnEvict
 func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
-	// 只有淘汰段的元素才会真正被淘汰，保护段的元素会先被淘汰到淘汰段
-	c.probation.SetOnEvict(onEvict)
+	c.main.SetOnEvict(onEvict)
 }
 
 // 添加或更新元素
-func (c *Cache[K, V]) Put(key K, value V) {
-	// 先看是否已经在保护段，如果是则更新即可
-	if c.protected.Contains(key) {
-		c.protected.Put(key, value)
-		return
+// 返回被淘汰的元素
+func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
+	// 增加元素计数
+	c.inc(key)
+
+	// 先添加到window
+	candidate := c.window.Put(key, value)
+	if candidate == nil {
+		return nil
 	}
 
-	// 如果在淘汰段，则移动到保护段
-	if c.probation.Contains(key) {
-		c.moveToProtected(key, value)
-		return
+	// 获取main里面的最可能被淘汰的元素
+	victim := c.main.Victim()
+	if victim == nil {
+		return c.main.Put(candidate.Key, candidate.Value)
 	}
 
-	// 如果已经到达最大尺寸，先剔除淘汰段的一个元素
-	if c.Full() {
-		c.probation.Evict()
+	// candidate和victim进行PK
+	candidateFreq := c.estimate(candidate.Key)
+	victimFreq := c.estimate(victim.Key)
+	// 如果candidate胜利则加入主缓存
+	if candidateFreq > victimFreq {
+		return c.main.Put(candidate.Key, candidate.Value)
 	}
 
-	// 添加元素到淘汰段
-	c.probation.Put(key, value)
+	// 否则就被淘汰了
+	return candidate
 }
 
 // 获取元素
 func (c *Cache[K, V]) Get(key K) (V, bool) {
-	// 先看是否已经在保护段，如果是则更新即可
-	if value, ok := c.protected.Get(key); ok {
-		return value, ok
+	// 增加元素计数
+	c.inc(key)
+
+	// 判断元素是否存在window
+	if value, ok := c.window.Get(key); ok {
+		return value, true
 	}
 
-	// 如果在淘汰段，则移动到保护段
-	if value, ok := c.probation.Get(key); ok {
-		c.moveToProtected(key, value)
+	// 判断元素是否存在main
+	if value, ok := c.main.Get(key); ok {
 		return value, true
 	}
 
@@ -102,11 +111,11 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 
 // 获取元素，不更新状态
 func (c *Cache[K, V]) Peek(key K) (V, bool) {
-	if value, ok := c.protected.Peek(key); ok {
-		return value, ok
+	if value, ok := c.window.Peek(key); ok {
+		return value, true
 	}
 
-	if value, ok := c.probation.Peek(key); ok {
+	if value, ok := c.main.Peek(key); ok {
 		return value, true
 	}
 
@@ -117,69 +126,49 @@ func (c *Cache[K, V]) Peek(key K) (V, bool) {
 
 // 是否包含元素，不更新状态
 func (c *Cache[K, V]) Contains(key K) bool {
-	return c.probation.Contains(key) || c.protected.Contains(key)
+	return c.window.Contains(key) || c.main.Contains(key)
 }
 
 // 获取缓存的Keys
 func (c *Cache[K, V]) Keys() []K {
-	fmt.Println("probation", c.probation.Keys())
-	fmt.Println("protected", c.protected.Keys())
-	return append(c.probation.Keys(), c.protected.Keys()...)
+	return append(c.window.Keys(), c.main.Keys()...)
 }
 
 // 获取缓存的Values
 func (c *Cache[K, V]) Values() []V {
-	return append(c.probation.Values(), c.protected.Values()...)
+	return append(c.window.Values(), c.main.Values()...)
 }
 
 // 获取缓存的Entries
 func (c *Cache[K, V]) Entries() []*cache.Entry[K, V] {
-	return append(c.probation.Entries(), c.protected.Entries()...)
+	return append(c.window.Entries(), c.main.Entries()...)
 }
 
 // 移除元素
 func (c *Cache[K, V]) Remove(key K) bool {
-	if c.protected.Remove(key) {
-		return true
-	}
-	if c.probation.Remove(key) {
-		return true
-	}
-	return false
-}
-
-// 淘汰元素
-func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
-	if entry := c.probation.Evict(); entry != nil {
-		return entry
-	}
-	if entry := c.protected.Evict(); entry != nil {
-		return entry
-	}
-	return nil
+	removed := false
+	removed = c.window.Remove(key) || removed
+	removed = c.main.Remove(key) || removed
+	return removed
 }
 
 // 清空缓存
 func (c *Cache[K, V]) Clear(needOnEvict bool) {
-	c.probation.Clear(needOnEvict)
-	c.protected.Clear(needOnEvict)
-}
-
-// 改变容量
-func (c *Cache[K, V]) Resize(capacity int, needOnEvict bool) {
-	_, protectedCap := splitCap(capacity)
-	c.probation.Resize(capacity, needOnEvict)
-	c.protected.Resize(protectedCap, needOnEvict)
+	c.window.Clear(needOnEvict)
+	c.main.Clear(needOnEvict)
+	c.filter.Clear()
+	c.counter.Attenuation(0)
+	c.samples = 0
 }
 
 // 元素个数
 func (c *Cache[K, V]) Len() int {
-	return c.probation.Len() + c.protected.Len()
+	return c.window.Len() + c.main.Len()
 }
 
 // 容量
 func (c *Cache[K, V]) Cap() int {
-	return c.probationCap + c.protectedCap
+	return c.window.Cap() + c.main.Cap()
 }
 
 // 缓存满了
@@ -187,26 +176,28 @@ func (c *Cache[K, V]) Full() bool {
 	return c.Len() == c.Cap()
 }
 
-// 移动到保护段
-func (c *Cache[K, V]) moveToProtected(key K, value V) {
-	// 从淘汰段移除
-	c.probation.Remove(key)
-
-	// 如果保护段满了，则把保护段的一个元素移动到淘汰段
-	if c.protected.Len() == c.protectedCap {
-		// 从保护段淘汰一个元素
-		entry := c.protected.Evict()
-		// 添加到淘汰段
-		c.probation.Put(entry.Key, entry.Value)
+// 增加元素计数
+func (c *Cache[K, V]) inc(key K) {
+	keyBytes := c.bytesFunc(key)
+	c.samples++
+	if c.samples == c.samplesThreshold {
+		c.filter.Clear()
+		c.counter.Attenuation(2)
+		c.samples = 0
 	}
-
-	// 添加到保护段
-	c.protected.Put(key, value)
+	if !c.filter.Contains(keyBytes) {
+		c.filter.Add(keyBytes)
+	} else {
+		c.counter.Inc(keyBytes)
+	}
 }
 
-// 分割容量
-func splitCap(capacity int) (int, int) {
-	protectedCap := int(float64(capacity) * ProtectedPercentage)
-	probationCap := capacity - protectedCap
-	return probationCap, protectedCap
+// 估算元素计数
+func (c *Cache[K, V]) estimate(key K) uint8 {
+	keyBytes := c.bytesFunc(key)
+	freq := c.counter.Estimate(keyBytes)
+	if c.filter.Contains(keyBytes) {
+		freq++
+	}
+	return freq
 }

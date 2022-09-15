@@ -3,7 +3,6 @@ package query
 import (
 	"encoding/base64"
 	"errors"
-	"fmt"
 
 	"github.com/jiaxwu/gommon/crypto"
 	"github.com/jiaxwu/gommon/crypto/aes"
@@ -56,7 +55,6 @@ func (c *Cipher) encrypt(src []byte, isBase64 bool) ([]byte, error) {
 		encrypt := c.c.Encrypt(src[i : i+c.sliceSize])
 		if isBase64 {
 			base64.RawStdEncoding.Encode(dst[paddingSliceLen*i:], encrypt)
-			fmt.Println("|", string(src[i:i+c.sliceSize]), "|", string(dst[paddingSliceLen*i:paddingSliceLen*(i+1)]), "|")
 		} else {
 			copy(dst[paddingSliceLen*i:], encrypt)
 		}

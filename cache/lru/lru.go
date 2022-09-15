@@ -137,6 +137,15 @@ func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
 	return elem.Value
 }
 
+// 获取可能被淘汰的元素
+func (c *Cache[K, V]) Victim() *cache.Entry[K, V] {
+	elem := c.evictList.Back()
+	if elem == nil {
+		return nil
+	}
+	return elem.Value
+}
+
 // 清空缓存
 func (c *Cache[K, V]) Clear(needOnEvict bool) {
 	// 触发回调

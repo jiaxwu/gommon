@@ -1,7 +1,6 @@
 package crypto
 
 import (
-	"fmt"
 	"math"
 )
 
@@ -22,7 +21,6 @@ func PKCS5Padding(src []byte, blockSize int) []byte {
 
 // 移除填充
 func PKCS5Trimming(src []byte) []byte {
-	fmt.Println(len(src))
 	paddingLen := src[len(src)-1]
 	return src[:len(src)-int(paddingLen)]
 }

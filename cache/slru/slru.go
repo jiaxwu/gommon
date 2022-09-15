@@ -1,8 +1,6 @@
 package slru
 
 import (
-	"fmt"
-
 	"github.com/jiaxwu/gommon/cache"
 	"github.com/jiaxwu/gommon/cache/lru"
 )
@@ -67,7 +65,7 @@ func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
 func (c *Cache[K, V]) Get(key K) (V, bool) {
 	// 先看是否已经在保护段，如果是则更新即可
 	if value, ok := c.protected.Get(key); ok {
-		return value, ok
+		return value, true
 	}
 
 	// 如果在淘汰段，则移动到保护段
@@ -84,7 +82,7 @@ func (c *Cache[K, V]) Get(key K) (V, bool) {
 // 获取元素，不更新状态
 func (c *Cache[K, V]) Peek(key K) (V, bool) {
 	if value, ok := c.protected.Peek(key); ok {
-		return value, ok
+		return value, true
 	}
 
 	if value, ok := c.probation.Peek(key); ok {
@@ -103,8 +101,6 @@ func (c *Cache[K, V]) Contains(key K) bool {
 
 // 获取缓存的Keys
 func (c *Cache[K, V]) Keys() []K {
-	fmt.Println("probation", c.probation.Keys())
-	fmt.Println("protected", c.protected.Keys())
 	return append(c.probation.Keys(), c.protected.Keys()...)
 }
 
@@ -131,13 +127,17 @@ func (c *Cache[K, V]) Remove(key K) bool {
 
 // 淘汰元素
 func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
-	if entry := c.probation.Evict(); entry != nil {
-		return entry
+	return c.probation.Evict()
+}
+
+// 获取可能被淘汰的元素
+func (c *Cache[K, V]) Victim() *cache.Entry[K, V] {
+	// 还没满则不可能被淘汰
+	if !c.Full() {
+		return nil
 	}
-	if entry := c.protected.Evict(); entry != nil {
-		return entry
-	}
-	return nil
+	// 获取淘汰段的最后一个
+	return c.probation.Victim()
 }
 
 // 清空缓存
