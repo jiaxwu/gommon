@@ -53,17 +53,19 @@ func (c *Cache[K, V]) SetSamples(samples int) {
 }
 
 // 添加或更新元素
-func (c *Cache[K, V]) Put(key K, value V) {
+// 返回被淘汰的元素
+func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
 	// 如果 key 已经存在，直接设置新值
 	if entry, ok := c.entries[key]; ok {
 		entry.entry.Value = value
 		entry.lastAccess = time.Now()
-		return
+		return nil
 	}
 
 	// 如果已经到达最大尺寸，先剔除一个元素
+	var evicted *cache.Entry[K, V]
 	if c.Full() {
-		c.Evict()
+		evicted = c.Evict()
 	}
 
 	// 添加元素
@@ -74,6 +76,7 @@ func (c *Cache[K, V]) Put(key K, value V) {
 		},
 		lastAccess: time.Now(),
 	}
+	return evicted
 }
 
 // 获取元素

@@ -38,17 +38,19 @@ func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 }
 
 // 添加或更新元素
-func (c *Cache[K, V]) Put(key K, value V) {
+// 返回被淘汰的元素
+func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
 	// 如果 key 已经存在，直接更新淘汰顺序，然后设置新值
 	if elem, ok := c.entries[key]; ok {
 		c.updateEvictList(elem)
 		elem.Value.entry.Value = value
-		return
+		return nil
 	}
 
 	// 如果已经到达最大尺寸，先剔除一个元素
+	var evicted *cache.Entry[K, V]
 	if c.Full() {
-		c.Evict()
+		evicted = c.Evict()
 	}
 
 	// 添加元素
@@ -60,6 +62,7 @@ func (c *Cache[K, V]) Put(key K, value V) {
 		frequency: 1,
 	})
 	c.entries[key] = elem
+	return evicted
 }
 
 // 获取元素

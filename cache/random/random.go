@@ -27,20 +27,23 @@ func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 }
 
 // 添加或更新元素
-func (c *Cache[K, V]) Put(key K, value V) {
+// 返回被淘汰的元素
+func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
 	// 如果 key 已经存在，直接设置新值
 	if _, ok := c.entries[key]; ok {
 		c.entries[key] = value
-		return
+		return nil
 	}
 
 	// 如果已经到达最大尺寸，先剔除一个元素
+	var evicted *cache.Entry[K, V]
 	if c.Full() {
-		c.Evict()
+		evicted = c.Evict()
 	}
 
 	// 添加元素
 	c.entries[key] = value
+	return evicted
 }
 
 // 获取元素
@@ -106,7 +109,7 @@ func (c *Cache[K, V]) Remove(key K) bool {
 }
 
 // 淘汰元素
-func (c *Cache[K, V]) Evict() {
+func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
 	for key, value := range c.entries {
 		delete(c.entries, key)
 		// 回调
@@ -116,8 +119,12 @@ func (c *Cache[K, V]) Evict() {
 				Value: value,
 			})
 		}
-		return
+		return &cache.Entry[K, V]{
+			Key:   key,
+			Value: value,
+		}
 	}
+	return nil
 }
 
 // 清空缓存

@@ -43,18 +43,17 @@ func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 }
 
 // 添加或更新元素
-func (c *Cache[K, V]) Put(key K, value V) {
+// 返回被淘汰的元素
+func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
 	// 如果存在LRUCache，则移动到LFUCache
 	if c.lruCache.Contains(key) {
 		c.lruCache.Remove(key)
-		c.lfuCache.Put(key, value)
-		return
+		return c.lfuCache.Put(key, value)
 	}
 
 	// 如果存在LFUCache，则更新
 	if c.lfuCache.Contains(key) {
-		c.lfuCache.Put(key, value)
-		return
+		return c.lfuCache.Put(key, value)
 	}
 
 	// 如果存在LRUEvict，则增加LRUCache的权重
@@ -67,8 +66,7 @@ func (c *Cache[K, V]) Put(key K, value V) {
 
 		// 移动到LFUCache
 		c.lruEvict.Remove(key)
-		c.lfuCache.Put(key, value)
-		return
+		return c.lfuCache.Put(key, value)
 	}
 
 	// 如果存在LFUEvict，则减少LRUCache的权重
@@ -81,8 +79,7 @@ func (c *Cache[K, V]) Put(key K, value V) {
 
 		// 移动到LFUCache
 		c.lfuEvict.Remove(key)
-		c.lfuCache.Put(key, value)
-		return
+		return c.lfuCache.Put(key, value)
 	}
 
 	// 如果已经到达最大尺寸，先剔除一个元素
@@ -102,7 +99,7 @@ func (c *Cache[K, V]) Put(key K, value V) {
 	}
 
 	// 添加到LRUCache
-	c.lruCache.Put(key, value)
+	return c.lruCache.Put(key, value)
 }
 
 // 获取元素
@@ -200,12 +197,12 @@ func (c *Cache[K, V]) Full() bool {
 
 // 淘汰元素
 // lfuEvictContainsKey: 如果lfuEvict包含key，则先从lruCache淘汰
-func (c *Cache[K, V]) evict(lfuEvictContainsKey bool) {
+func (c *Cache[K, V]) evict(lfuEvictContainsKey bool) *cache.Entry[K, V] {
 	lruCacheLen := c.lruCache.Len()
 	if lruCacheLen > 0 && (lruCacheLen > c.preferLRU || (lruCacheLen == c.preferLRU && lfuEvictContainsKey)) {
-		c.lruCache.Evict()
+		return c.lruCache.Evict()
 	} else {
-		c.lfuCache.Evict()
+		return c.lfuCache.Evict()
 	}
 }
 

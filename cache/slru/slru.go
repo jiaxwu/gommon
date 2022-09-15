@@ -39,26 +39,28 @@ func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 }
 
 // 添加或更新元素
-func (c *Cache[K, V]) Put(key K, value V) {
+// 返回被淘汰的元素
+func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
 	// 先看是否已经在保护段，如果是则更新即可
 	if c.protected.Contains(key) {
-		c.protected.Put(key, value)
-		return
+		return c.protected.Put(key, value)
 	}
 
 	// 如果在淘汰段，则移动到保护段
 	if c.probation.Contains(key) {
 		c.moveToProtected(key, value)
-		return
+		return nil
 	}
 
 	// 如果已经到达最大尺寸，先剔除淘汰段的一个元素
+	var evicted *cache.Entry[K, V]
 	if c.Full() {
-		c.probation.Evict()
+		evicted = c.probation.Evict()
 	}
 
 	// 添加元素到淘汰段
 	c.probation.Put(key, value)
+	return evicted
 }
 
 // 获取元素

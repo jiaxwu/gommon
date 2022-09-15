@@ -5,30 +5,51 @@ import (
 
 	"github.com/jiaxwu/gommon/cache"
 	"github.com/jiaxwu/gommon/cache/lru"
+	"github.com/jiaxwu/gommon/cache/slru"
+	"github.com/jiaxwu/gommon/counter/cm"
+	"github.com/jiaxwu/gommon/filter/bloom"
 )
 
-// 保护段比例
-const ProtectedPercentage = 0.8
+const (
+	// 窗口缓存比例
+	windowPercentage = 0.01
+	// 过滤器错误率
+	filterFalsePositiveRate = 0.01
+	// 计数器错误范围
+	counterErrorRange = 1
+	// 计数器错误率
+	counterErrorRate = 0.01
+	// 采样因子
+	samplesFactor = 8
+)
 
-// 分段最近最少使用
-// 第一次access是淘汰段，第二次access才进入保护段
-// 避免某些很少读取的值把一直读取的值给淘汰了
-// 优点：稳定淘汰，避免大量失效
+// 转换成[]byte
+type BytesFunc[T comparable] func(t T) []byte
+
+// W-TinyLFU
 // 非线程安全，请根据业务加锁
+// https://arxiv.org/pdf/1512.00727v2.pdf
 type Cache[K comparable, V any] struct {
-	probation    *lru.Cache[K, V] // 淘汰段
-	protected    *lru.Cache[K, V] // 保护段
-	probationCap int
-	protectedCap int
+	filter           *bloom.Filter     // 过滤器
+	counter          *cm.Counter4      // 计数器
+	window           *lru.Cache[K, V]  // 窗口缓存
+	main             *slru.Cache[K, V] // 主缓存
+	samplesThreshold uint64            // 采样阈值，到达阈值计数会减半
+	samples          uint64            // 当前采样数量
+	bytesFunc        BytesFunc[K]      // 把Key转换成Bytes的函数
 }
 
-func New[K comparable, V any](capacity int) *Cache[K, V] {
-	probationCap, protectedCap := splitCap(capacity)
+func New[K comparable, V any](bytesFunc BytesFunc[K], capacity int) *Cache[K, V] {
+	windowCap := int(0.01 * float64(capacity))
+	mainCap := capacity - windowCap
+
 	return &Cache[K, V]{
-		probation:    lru.New[K, V](capacity),
-		protected:    lru.New[K, V](protectedCap),
-		probationCap: probationCap,
-		protectedCap: protectedCap,
+		filter:           bloom.New(uint64(capacity), filterFalsePositiveRate),
+		counter:          cm.New4(uint64(capacity), counterErrorRange, counterErrorRate),
+		window:           lru.New[K, V](windowCap),
+		main:             slru.New[K, V](mainCap),
+		samplesThreshold: uint64(capacity) * samplesFactor,
+		bytesFunc:        bytesFunc,
 	}
 }
 
