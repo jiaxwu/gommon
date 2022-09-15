@@ -27,7 +27,7 @@ type Counter[T constraints.Unsigned] struct {
 // errorRate：错误率
 func New[T constraints.Unsigned](size uint64, errorRange T, errorRate float64) *Counter[T] {
 	// 计数器长度
-	countersLen := uint64(math.Ceil(math.E / (float64(errorRange) / float64(size))))
+	countersLen := uint64(math.Ceil(math.E * float64(size) / float64(errorRange)))
 	// 哈希个数
 	hashsCnt := int(math.Ceil(math.Log(1 / errorRate)))
 	hashs := make([]*hash.Hash, hashsCnt)
@@ -42,6 +42,21 @@ func New[T constraints.Unsigned](size uint64, errorRange T, errorRate float64) *
 		hashs:       hashs,
 		maxCount:    T(0) - 1,
 	}
+}
+
+// 创建一个计数器
+// size：数据流大小
+// elements：不同元素数量
+// errorRate：错误率
+func NewWithElements[T constraints.Unsigned](size, elements uint64, errorRate float64) *Counter[T] {
+	if elements > size {
+		panic("too much elements")
+	}
+	errorRange := T(0) - 1
+	if size/elements < uint64(errorRange) {
+		errorRange = T(size / elements)
+	}
+	return New(size, errorRange, errorRate)
 }
 
 // 增加元素的计数
@@ -109,7 +124,12 @@ func (c *Counter[T]) Attenuation(factor T) {
 	}
 }
 
-// 计数器长度
-func (c *Counter[T]) Len() uint64 {
+// 计数器数量
+func (c *Counter[T]) Counters() uint64 {
 	return c.countersLen
+}
+
+// 哈希函数数量
+func (c *Counter[T]) Hashs() uint64 {
+	return uint64(len(c.hashs))
 }

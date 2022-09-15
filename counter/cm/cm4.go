@@ -47,6 +47,21 @@ func New4(size uint64, errorRange uint8, errorRate float64) *Counter4 {
 	}
 }
 
+// 创建一个计数器
+// size：数据流大小
+// elements：不同元素数量
+// errorRate：错误率
+func New4WithElements(size, elements uint64, errorRate float64) *Counter4 {
+	if elements > size {
+		panic("too much elements")
+	}
+	errorRange := uint8(counter4MaxCount)
+	if size/elements < uint64(errorRange) {
+		errorRange = uint8(size / elements)
+	}
+	return New4(size, errorRange, errorRate)
+}
+
 // 增加元素的计数
 func (c *Counter4) Add(b []byte, val uint8) {
 	for i, h := range c.hashs {
@@ -116,9 +131,14 @@ func (c *Counter4) Attenuation(factor uint8) {
 	}
 }
 
-// 计数器长度
-func (c *Counter4) Len() uint64 {
+// 计数器数量
+func (c *Counter4) Counters() uint64 {
 	return c.countersLen * (64 / counter4Bits)
+}
+
+// 哈希函数数量
+func (c *Counter4) Hashs() uint64 {
+	return uint64(len(c.hashs))
 }
 
 // 返回位置
