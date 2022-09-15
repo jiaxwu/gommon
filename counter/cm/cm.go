@@ -29,7 +29,7 @@ func New[T constraints.Unsigned](size uint64, errorRange T, errorRate float64) *
 	// 计数器长度
 	countersLen := uint64(math.Ceil(math.E / (float64(errorRange) / float64(size))))
 	// 哈希个数
-	hashsCnt := int(math.Ceil(math.Log(1.0 / errorRate)))
+	hashsCnt := int(math.Ceil(math.Log(1 / errorRate)))
 	hashs := make([]*hash.Hash, hashsCnt)
 	counters := make([][]T, hashsCnt)
 	for i := 0; i < hashsCnt; i++ {
