@@ -1,6 +1,8 @@
 package tinylfu
 
 import (
+	"hash/fnv"
+
 	"github.com/jiaxwu/gommon/math"
 
 	"github.com/jiaxwu/gommon/cache"
@@ -62,8 +64,11 @@ func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 // 添加或更新元素
 // 返回被淘汰的元素
 func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
+	// 计算元素哈希值
+	hash := c.hash(key)
+
 	// 增加元素计数
-	c.inc(key)
+	c.inc(hash)
 
 	// 先添加到window
 	candidate := c.window.Put(key, value)
@@ -78,8 +83,8 @@ func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
 	}
 
 	// candidate和victim进行PK
-	candidateFreq := c.estimate(candidate.Key)
-	victimFreq := c.estimate(victim.Key)
+	candidateFreq := c.estimate(c.hash(candidate.Key))
+	victimFreq := c.estimate(c.hash(victim.Key))
 	// 如果candidate胜利则加入主缓存
 	if candidateFreq > victimFreq {
 		return c.main.Put(candidate.Key, candidate.Value)
@@ -91,8 +96,11 @@ func (c *Cache[K, V]) Put(key K, value V) *cache.Entry[K, V] {
 
 // 获取元素
 func (c *Cache[K, V]) Get(key K) (V, bool) {
+	// 计算元素哈希值
+	hash := c.hash(key)
+
 	// 增加元素计数
-	c.inc(key)
+	c.inc(hash)
 
 	// 判断元素是否存在window
 	if value, ok := c.window.Get(key); ok {
@@ -177,27 +185,33 @@ func (c *Cache[K, V]) Full() bool {
 }
 
 // 增加元素计数
-func (c *Cache[K, V]) inc(key K) {
-	keyBytes := c.bytesFunc(key)
+func (c *Cache[K, V]) inc(hash uint64) {
 	c.samples++
 	if c.samples == c.samplesThreshold {
 		c.filter.Clear()
 		c.counter.Attenuation(2)
 		c.samples = 0
 	}
-	if !c.filter.Contains(keyBytes) {
-		c.filter.Add(keyBytes)
+	if !c.filter.Contains(hash) {
+		c.filter.Add(hash)
 	} else {
-		c.counter.Inc(keyBytes)
+		c.counter.Add(hash, 1)
 	}
 }
 
 // 估算元素计数
-func (c *Cache[K, V]) estimate(key K) uint8 {
-	keyBytes := c.bytesFunc(key)
-	freq := c.counter.Estimate(keyBytes)
-	if c.filter.Contains(keyBytes) {
+func (c *Cache[K, V]) estimate(hash uint64) uint8 {
+	freq := c.counter.Estimate(hash)
+	if c.filter.Contains(hash) {
 		freq++
 	}
 	return freq
+}
+
+// 计算哈希值
+func (c *Cache[K, V]) hash(key K) uint64 {
+	keyBytes := c.bytesFunc(key)
+	f := fnv.New64()
+	f.Write(keyBytes)
+	return f.Sum64()
 }
