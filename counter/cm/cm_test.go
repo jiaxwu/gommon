@@ -1,7 +1,6 @@
 package cm
 
 import (
-	"encoding/binary"
 	"math"
 	"strconv"
 	"testing"
@@ -9,12 +8,12 @@ import (
 
 func TestCount(t *testing.T) {
 	cm := New[uint8](1000, 10, 0.001)
-	cm.IncString("10")
-	cm.IncString("51151")
-	cm.IncString("321")
-	cm.IncString("10")
-	cm.IncString("10")
-	cm.IncString("321")
+	cm.AddString("10", 1)
+	cm.AddString("51151", 1)
+	cm.AddString("321", 1)
+	cm.AddString("10", 1)
+	cm.AddString("10", 1)
+	cm.AddString("321", 1)
 	if cm.EstimateString("10") != 3 {
 		t.Errorf("want %v, but %d", 3, cm.EstimateString("10"))
 	}
@@ -59,18 +58,15 @@ func TestExpectedErrorAndErrorRate(t *testing.T) {
 	errorRange := uint32(1)
 	errorRate := 0.001
 	cm := New(capacity, errorRange, errorRate)
-	item := make([]byte, 4)
 	// 添加计数值
-	for i := uint32(0); i < uint32(capacity); i++ {
-		binary.BigEndian.PutUint32(item, i)
-		cm.Inc(item)
+	for i := uint64(0); i < capacity; i++ {
+		cm.Add(i, 1)
 	}
 	// 评估
 	errorCount := 0
 	errorSum := 0
-	for i := uint32(0); i < uint32(capacity); i++ {
-		binary.BigEndian.PutUint32(item, i)
-		val := cm.Estimate(item)
+	for i := uint64(0); i < capacity; i++ {
+		val := cm.Estimate(i)
 		if val > 1+errorRange {
 			errorCount++
 			errorSum += int(val) - 1
@@ -86,7 +82,7 @@ func TestExpectedErrorAndErrorRate(t *testing.T) {
 	}
 }
 
-func BenchmarkAddAndEstimate(b *testing.B) {
+func BenchmarkAddAndEstimateBytes(b *testing.B) {
 	buf := make([]byte, 8192)
 	for length := 1; length <= cap(buf); length *= 2 {
 		b.Run(strconv.Itoa(length), func(b *testing.B) {
@@ -96,8 +92,22 @@ func BenchmarkAddAndEstimate(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				f.Inc(buf)
-				f.Estimate(buf)
+				f.AddBytes(buf, 1)
+				f.EstimateBytes(buf)
+			}
+		})
+	}
+}
+
+func BenchmarkAddAndEstimate(b *testing.B) {
+	for length := 1; length <= 8192; length *= 2 {
+		b.Run(strconv.Itoa(length), func(b *testing.B) {
+			f := New[uint8](uint64(b.N), 10, 0.0001)
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				f.Add(uint64(i), 1)
+				f.Estimate(uint64(i))
 			}
 		})
 	}

@@ -1,9 +1,11 @@
 package cm
 
 import (
+	"hash/fnv"
 	"math"
+	"math/rand"
+	"time"
 
-	"github.com/jiaxwu/gommon/hash"
 	mmath "github.com/jiaxwu/gommon/math"
 	"github.com/jiaxwu/gommon/mem"
 	"golang.org/x/exp/constraints"
@@ -16,9 +18,9 @@ import (
 // https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.591.8351&rep=rep1&type=pdf
 type Counter[T constraints.Unsigned] struct {
 	counters    [][]T
-	countersLen uint64       // 计数器长度
-	hashs       []*hash.Hash // 哈希函数列表
-	maxCount    T            // 最大计数值
+	countersLen uint64   // 计数器长度
+	seeds       []uint64 // 哈希种子
+	maxCount    T        // 最大计数值
 }
 
 // 创建一个计数器
@@ -29,17 +31,18 @@ func New[T constraints.Unsigned](size uint64, errorRange T, errorRate float64) *
 	// 计数器长度
 	countersLen := uint64(math.Ceil(math.E * float64(size) / float64(errorRange)))
 	// 哈希个数
-	hashsCnt := int(math.Ceil(math.Log(1 / errorRate)))
-	hashs := make([]*hash.Hash, hashsCnt)
-	counters := make([][]T, hashsCnt)
-	for i := 0; i < hashsCnt; i++ {
-		hashs[i] = hash.New()
+	seedsCnt := int(math.Ceil(math.Log(1 / errorRate)))
+	seeds := make([]uint64, seedsCnt)
+	counters := make([][]T, seedsCnt)
+	source := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < seedsCnt; i++ {
+		seeds[i] = source.Uint64()
 		counters[i] = make([]T, countersLen)
 	}
 	return &Counter[T]{
 		counters:    counters,
 		countersLen: countersLen,
-		hashs:       hashs,
+		seeds:       seeds,
 		maxCount:    T(0) - 1,
 	}
 }
@@ -60,9 +63,10 @@ func NewWithElements[T constraints.Unsigned](size, elements uint64, errorRate fl
 }
 
 // 增加元素的计数
-func (c *Counter[T]) Add(b []byte, val T) {
-	for i, h := range c.hashs {
-		index := h.Sum64(b) % c.countersLen
+// 一般h是一个哈希值
+func (c *Counter[T]) Add(h uint64, val T) {
+	for i, seed := range c.seeds {
+		index := (h ^ seed) % c.countersLen
 		if c.counters[i][index]+val <= c.counters[i][index] {
 			c.counters[i][index] = c.maxCount
 		} else {
@@ -72,29 +76,23 @@ func (c *Counter[T]) Add(b []byte, val T) {
 }
 
 // 增加元素的计数
-// 等同于Add(b, 1)
-func (c *Counter[T]) Inc(b []byte) {
-	c.Add(b, 1)
+func (c *Counter[T]) AddBytes(b []byte, val T) {
+	f := fnv.New64()
+	f.Write(b)
+	c.Add(f.Sum64(), val)
 }
 
 // 增加元素的计数
 // 字符串类型
 func (c *Counter[T]) AddString(s string, val T) {
-	c.Add([]byte(s), val)
-}
-
-// 增加元素的计数
-// 等同于Add(b, 1)
-// 字符串类型
-func (c *Counter[T]) IncString(s string) {
-	c.Add([]byte(s), 1)
+	c.AddBytes([]byte(s), val)
 }
 
 // 估算元素的计数
-func (c *Counter[T]) Estimate(b []byte) T {
+func (c *Counter[T]) Estimate(h uint64) T {
 	minCount := c.maxCount
-	for i, h := range c.hashs {
-		index := h.Sum64(b) % c.countersLen
+	for i, seed := range c.seeds {
+		index := (h ^ seed) % c.countersLen
 		count := c.counters[i][index]
 		if count == 0 {
 			return 0
@@ -105,9 +103,16 @@ func (c *Counter[T]) Estimate(b []byte) T {
 }
 
 // 估算元素的计数
+func (c *Counter[T]) EstimateBytes(b []byte) T {
+	f := fnv.New64()
+	f.Write(b)
+	return c.Estimate(f.Sum64())
+}
+
+// 估算元素的计数
 // 字符串类型
 func (c *Counter[T]) EstimateString(s string) T {
-	return c.Estimate([]byte(s))
+	return c.EstimateBytes([]byte(s))
 }
 
 // 计数衰减
@@ -131,5 +136,5 @@ func (c *Counter[T]) Counters() uint64 {
 
 // 哈希函数数量
 func (c *Counter[T]) Hashs() uint64 {
-	return uint64(len(c.hashs))
+	return uint64(len(c.seeds))
 }

@@ -1,9 +1,11 @@
 package cm
 
 import (
+	"hash/fnv"
 	"math"
+	"math/rand"
+	"time"
 
-	"github.com/jiaxwu/gommon/hash"
 	mmath "github.com/jiaxwu/gommon/math"
 	"github.com/jiaxwu/gommon/mem"
 )
@@ -18,8 +20,8 @@ const (
 // 4bit 版本 Count-Min Sketch 计数器
 type Counter4 struct {
 	counters    [][]uint64
-	countersLen uint64       // 计数器长度
-	hashs       []*hash.Hash // 哈希函数列表
+	countersLen uint64   // 计数器长度
+	seeds       []uint64 // 哈希种子
 }
 
 // 创建一个计数器
@@ -33,17 +35,18 @@ func New4(size uint64, errorRange uint8, errorRate float64) *Counter4 {
 	// 计数器长度
 	countersLen := uint64(math.Ceil(math.E / (float64(errorRange) / float64(size)) / (64 / counter4Bits)))
 	// 哈希个数
-	hashsCnt := int(math.Ceil(math.Log(1 / errorRate)))
-	hashs := make([]*hash.Hash, hashsCnt)
-	counters := make([][]uint64, hashsCnt)
-	for i := 0; i < hashsCnt; i++ {
-		hashs[i] = hash.New()
+	seedsCnt := int(math.Ceil(math.Log(1 / errorRate)))
+	seeds := make([]uint64, seedsCnt)
+	counters := make([][]uint64, seedsCnt)
+	source := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < seedsCnt; i++ {
+		seeds[i] = source.Uint64()
 		counters[i] = make([]uint64, countersLen)
 	}
 	return &Counter4{
 		counters:    counters,
 		countersLen: countersLen,
-		hashs:       hashs,
+		seeds:       seeds,
 	}
 }
 
@@ -63,9 +66,9 @@ func New4WithElements(size, elements uint64, errorRate float64) *Counter4 {
 }
 
 // 增加元素的计数
-func (c *Counter4) Add(b []byte, val uint8) {
-	for i, h := range c.hashs {
-		index, offset := c.pos(h, b)
+func (c *Counter4) Add(h uint64, val uint8) {
+	for i, seed := range c.seeds {
+		index, offset := c.pos(seed, h)
 		count := c.getCount(c.counters[i], index, offset)
 		count += uint64(val)
 		if count > counter4MaxCount {
@@ -76,29 +79,23 @@ func (c *Counter4) Add(b []byte, val uint8) {
 }
 
 // 增加元素的计数
-// 等同于Add(b, 1)
-func (c *Counter4) Inc(b []byte) {
-	c.Add(b, 1)
+func (c *Counter4) AddBytes(b []byte, val uint8) {
+	f := fnv.New64()
+	f.Write(b)
+	c.Add(f.Sum64(), val)
 }
 
 // 增加元素的计数
 // 字符串类型
 func (c *Counter4) AddString(s string, val uint8) {
-	c.Add([]byte(s), val)
-}
-
-// 增加元素的计数
-// 等同于Add(b, 1)
-// 字符串类型
-func (c *Counter4) IncString(s string) {
-	c.Add([]byte(s), 1)
+	c.AddBytes([]byte(s), val)
 }
 
 // 估算元素的计数
-func (c *Counter4) Estimate(b []byte) uint8 {
+func (c *Counter4) Estimate(h uint64) uint8 {
 	minCount := uint8(counter4MaxCount)
-	for i, h := range c.hashs {
-		index, offset := c.pos(h, b)
+	for i, seed := range c.seeds {
+		index, offset := c.pos(seed, h)
 		count := c.getCount(c.counters[i], index, offset)
 		if count == 0 {
 			return 0
@@ -109,9 +106,16 @@ func (c *Counter4) Estimate(b []byte) uint8 {
 }
 
 // 估算元素的计数
+func (c *Counter4) EstimateBytes(b []byte) uint8 {
+	f := fnv.New64()
+	f.Write(b)
+	return c.Estimate(f.Sum64())
+}
+
+// 估算元素的计数
 // 字符串类型
 func (c *Counter4) EstimateString(s string) uint8 {
-	return c.Estimate([]byte(s))
+	return c.EstimateBytes([]byte(s))
 }
 
 // 计数衰减
@@ -138,14 +142,14 @@ func (c *Counter4) Counters() uint64 {
 
 // 哈希函数数量
 func (c *Counter4) Hashs() uint64 {
-	return uint64(len(c.hashs))
+	return uint64(len(c.seeds))
 }
 
 // 返回位置
 // 也就是index和offset
-func (c *Counter4) pos(h *hash.Hash, b []byte) (uint64, uint64) {
+func (c *Counter4) pos(seed, h uint64) (uint64, uint64) {
 	// 哈希值
-	hashValue := h.Sum64(b)
+	hashValue := seed ^ h
 	// 计数器下标
 	index := hashValue % c.countersLen
 	// 计数器在64位里面的偏移
