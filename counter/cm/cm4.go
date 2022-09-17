@@ -80,9 +80,7 @@ func (c *Counter4) Add(h uint64, val uint8) {
 
 // 增加元素的计数
 func (c *Counter4) AddBytes(b []byte, val uint8) {
-	f := fnv.New64()
-	f.Write(b)
-	c.Add(f.Sum64(), val)
+	c.Add(c.hash(b), val)
 }
 
 // 增加元素的计数
@@ -107,9 +105,7 @@ func (c *Counter4) Estimate(h uint64) uint8 {
 
 // 估算元素的计数
 func (c *Counter4) EstimateBytes(b []byte) uint8 {
-	f := fnv.New64()
-	f.Write(b)
-	return c.Estimate(f.Sum64())
+	return c.Estimate(c.hash(b))
 }
 
 // 估算元素的计数
@@ -165,4 +161,11 @@ func (c *Counter4) getCount(counter []uint64, index, offset uint64) uint64 {
 // 设置计数值
 func (c *Counter4) setCount(counter []uint64, index, offset, count uint64) {
 	counter[index] = (counter[index] &^ (counter4MaxVal << offset)) | (count << offset)
+}
+
+// 计算哈希值
+func (c *Counter4) hash(b []byte) uint64 {
+	f := fnv.New64()
+	f.Write(b)
+	return f.Sum64()
 }

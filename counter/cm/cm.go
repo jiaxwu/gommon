@@ -77,9 +77,7 @@ func (c *Counter[T]) Add(h uint64, val T) {
 
 // 增加元素的计数
 func (c *Counter[T]) AddBytes(b []byte, val T) {
-	f := fnv.New64()
-	f.Write(b)
-	c.Add(f.Sum64(), val)
+	c.Add(c.hash(b), val)
 }
 
 // 增加元素的计数
@@ -104,9 +102,7 @@ func (c *Counter[T]) Estimate(h uint64) T {
 
 // 估算元素的计数
 func (c *Counter[T]) EstimateBytes(b []byte) T {
-	f := fnv.New64()
-	f.Write(b)
-	return c.Estimate(f.Sum64())
+	return c.Estimate(c.hash(b))
 }
 
 // 估算元素的计数
@@ -137,4 +133,11 @@ func (c *Counter[T]) Counters() uint64 {
 // 哈希函数数量
 func (c *Counter[T]) Hashs() uint64 {
 	return uint64(len(c.seeds))
+}
+
+// 计算哈希值
+func (c *Counter[T]) hash(b []byte) uint64 {
+	f := fnv.New64()
+	f.Write(b)
+	return f.Sum64()
 }
