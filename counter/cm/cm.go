@@ -17,10 +17,10 @@ import (
 // 可以减少空间消耗
 // https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.591.8351&rep=rep1&type=pdf
 type Counter[T constraints.Unsigned] struct {
-	counters    [][]T
-	countersLen uint64   // 计数器长度
-	seeds       []uint64 // 哈希种子
-	maxCount    T        // 最大计数值
+	counters   [][]T
+	counterCnt uint64   // 计数器个数
+	seeds      []uint64 // 哈希种子
+	maxVal     T        // 最大计数值
 }
 
 // 创建一个计数器
@@ -29,21 +29,21 @@ type Counter[T constraints.Unsigned] struct {
 // errorRate：错误率
 func New[T constraints.Unsigned](size uint64, errorRange T, errorRate float64) *Counter[T] {
 	// 计数器长度
-	countersLen := uint64(math.Ceil(math.E * float64(size) / float64(errorRange)))
+	counterCnt := uint64(math.Ceil(math.E * float64(size) / float64(errorRange)))
 	// 哈希个数
-	seedsCnt := int(math.Ceil(math.Log(1 / errorRate)))
-	seeds := make([]uint64, seedsCnt)
-	counters := make([][]T, seedsCnt)
+	seedCnt := int(math.Ceil(math.Log(1 / errorRate)))
+	seeds := make([]uint64, seedCnt)
+	counters := make([][]T, seedCnt)
 	source := rand.New(rand.NewSource(time.Now().UnixNano()))
-	for i := 0; i < seedsCnt; i++ {
+	for i := 0; i < seedCnt; i++ {
 		seeds[i] = source.Uint64()
-		counters[i] = make([]T, countersLen)
+		counters[i] = make([]T, counterCnt)
 	}
 	return &Counter[T]{
-		counters:    counters,
-		countersLen: countersLen,
-		seeds:       seeds,
-		maxCount:    T(0) - 1,
+		counters:   counters,
+		counterCnt: counterCnt,
+		seeds:      seeds,
+		maxVal:     T(0) - 1,
 	}
 }
 
@@ -66,9 +66,9 @@ func NewWithElements[T constraints.Unsigned](size, elements uint64, errorRate fl
 // 一般h是一个哈希值
 func (c *Counter[T]) Add(h uint64, val T) {
 	for i, seed := range c.seeds {
-		index := (h ^ seed) % c.countersLen
+		index := (h ^ seed) % c.counterCnt
 		if c.counters[i][index]+val <= c.counters[i][index] {
-			c.counters[i][index] = c.maxCount
+			c.counters[i][index] = c.maxVal
 		} else {
 			c.counters[i][index] += val
 		}
@@ -90,9 +90,9 @@ func (c *Counter[T]) AddString(s string, val T) {
 
 // 估算元素的计数
 func (c *Counter[T]) Estimate(h uint64) T {
-	minCount := c.maxCount
+	minCount := c.maxVal
 	for i, seed := range c.seeds {
-		index := (h ^ seed) % c.countersLen
+		index := (h ^ seed) % c.counterCnt
 		count := c.counters[i][index]
 		if count == 0 {
 			return 0
@@ -122,7 +122,7 @@ func (c *Counter[T]) Attenuation(factor T) {
 		if factor == 0 {
 			mem.Memset(counter, 0)
 		} else {
-			for j := uint64(0); j < c.countersLen; j++ {
+			for j := uint64(0); j < c.counterCnt; j++ {
 				counter[j] /= factor
 			}
 		}
@@ -131,7 +131,7 @@ func (c *Counter[T]) Attenuation(factor T) {
 
 // 计数器数量
 func (c *Counter[T]) Counters() uint64 {
-	return c.countersLen
+	return c.counterCnt
 }
 
 // 哈希函数数量
