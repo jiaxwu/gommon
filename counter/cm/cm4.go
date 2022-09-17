@@ -68,7 +68,7 @@ func New4WithElements(size, elements uint64, errorRate float64) *Counter4 {
 // 增加元素的计数
 func (c *Counter4) Add(h uint64, val uint8) {
 	for i, seed := range c.seeds {
-		index, offset := c.pos(seed, h)
+		index, offset := c.pos(h, seed)
 		count := c.getCount(c.counters[i], index, offset)
 		count += uint64(val)
 		if count > counter4MaxCount {
@@ -95,7 +95,7 @@ func (c *Counter4) AddString(s string, val uint8) {
 func (c *Counter4) Estimate(h uint64) uint8 {
 	minCount := uint8(counter4MaxCount)
 	for i, seed := range c.seeds {
-		index, offset := c.pos(seed, h)
+		index, offset := c.pos(h, seed)
 		count := c.getCount(c.counters[i], index, offset)
 		if count == 0 {
 			return 0
@@ -147,7 +147,7 @@ func (c *Counter4) Hashs() uint64 {
 
 // 返回位置
 // 也就是index和offset
-func (c *Counter4) pos(seed, h uint64) (uint64, uint64) {
+func (c *Counter4) pos(h, seed uint64) (uint64, uint64) {
 	// 哈希值
 	hashValue := seed ^ h
 	// 计数器下标
