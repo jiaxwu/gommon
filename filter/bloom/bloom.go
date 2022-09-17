@@ -51,9 +51,7 @@ func (f *Filter) Add(hash uint64) {
 
 // 添加元素
 func (f *Filter) AddBytes(b []byte) {
-	fnvHash := fnv.New64()
-	fnvHash.Write(b)
-	f.Add(fnvHash.Sum64())
+	f.Add(f.hash(b))
 }
 
 // 添加元素
@@ -79,9 +77,7 @@ func (f *Filter) Contains(hash uint64) bool {
 // 元素是否存在
 // true表示可能存在
 func (f *Filter) ContainsBytes(b []byte) bool {
-	fnvHash := fnv.New64()
-	fnvHash.Write(b)
-	return f.Contains(fnvHash.Sum64())
+	return f.Contains(f.hash(b))
 }
 
 // 元素是否存在
@@ -111,4 +107,11 @@ func (f *Filter) pos(h, seed uint64) (uint64, uint64) {
 	// 在一个元素里面的偏移
 	offset := bitsIndex % uint64Bits
 	return index, offset
+}
+
+// 计算哈希值
+func (f *Filter) hash(b []byte) uint64 {
+	fnvHash := fnv.New64()
+	fnvHash.Write(b)
+	return fnvHash.Sum64()
 }
