@@ -2,6 +2,7 @@ package bloom
 
 import (
 	"encoding/binary"
+	"hash/fnv"
 	"strconv"
 	"testing"
 )
@@ -35,35 +36,41 @@ func BenchmarkAddAndContains(b *testing.B) {
 			b.ReportAllocs()
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				f.Add(buf)
-				f.Contains(buf)
+				f.AddBytes(buf)
+				f.ContainsBytes(buf)
 			}
 		})
 	}
 }
 
 func TestFalsePositiveRate(t *testing.T) {
-	capacity := uint64(100000)
-	rounds := uint32(100000)
+	capacity := uint64(10000000)
+	rounds := uint64(10000000)
 	falsePositiveRate := 0.01
 	f := New(capacity, falsePositiveRate)
 	// 加入过滤器一些元素
-	item := make([]byte, 4)
-	for i := uint32(0); i < uint32(capacity); i++ {
-		binary.BigEndian.PutUint32(item, i)
-		f.Add(item)
+	for i := uint64(0); i < capacity; i++ {
+		h := fnv.New64()
+		b := make([]byte, 8)
+		binary.BigEndian.PutUint64(b, i)
+		h.Write(b)
+		f.Add(h.Sum64())
 	}
 	// 查询不存在的元素，计算错误率
 	falsePositiveCount := 0
-	for i := uint32(0); i < rounds; i++ {
+	for i := uint64(0); i < rounds; i++ {
 		// 加上容量保证这个元素一定不是之前加入过滤器的
-		binary.BigEndian.PutUint32(item, i+uint32(capacity)+1)
-		if f.Contains(item) {
+		h := fnv.New64()
+		b := make([]byte, 8)
+		binary.BigEndian.PutUint64(b, i+capacity+1)
+		h.Write(b)
+		if f.Contains(h.Sum64()) {
 			falsePositiveCount++
 		}
 	}
+	t.Log(falsePositiveCount)
 	fpRate := float64(falsePositiveCount) / (float64(rounds))
-	if !(fpRate >= falsePositiveRate-0.001 && fpRate <= falsePositiveRate+0.001) {
+	if !(fpRate >= falsePositiveRate*(0.9) && fpRate <= falsePositiveRate*(1.1)) {
 		t.Errorf("fpRate not accuracy %v", fpRate)
 	}
 }

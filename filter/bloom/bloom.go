@@ -1,9 +1,10 @@
 package bloom
 
 import (
+	"hash/fnv"
 	"math"
-
-	"github.com/jiaxwu/gommon/hash"
+	"math/rand"
+	"time"
 )
 
 // uint64的位数
@@ -13,9 +14,9 @@ const uint64Bits = 64
 // https://llimllib.github.io/bloomfilter-tutorial/
 // https://github.com/bits-and-blooms/bloom/blob/master/bloom.go
 type Filter struct {
-	bits    []uint64     // bit数组
-	bitsCnt uint64       // bit位数
-	hashs   []*hash.Hash // 不同哈希函数
+	bits   []uint64 // bit数组
+	bitCnt uint64   // bit位数
+	seeds  []uint64 // 哈希种子
 }
 
 // capacity：容量
@@ -23,43 +24,49 @@ type Filter struct {
 func New(capacity uint64, falsePositiveRate float64) *Filter {
 	// bit数量
 	factor := -math.Log(falsePositiveRate) / (math.Ln2 * math.Ln2)
-	bitsCnt := uint64(math.Ceil(float64(capacity) * factor))
+	bitCnt := uint64(math.Ceil(float64(capacity) * factor))
 	// 这里扩大到最后一个uint64大小，避免浪费
-	bitsCnt = (bitsCnt + uint64Bits - 1) / uint64Bits * uint64Bits
-
+	bitCnt = (bitCnt + uint64Bits - 1) / uint64Bits * uint64Bits
 	// 哈希函数数量
-	hashsCnt := int(math.Ceil(math.Ln2 * float64(bitsCnt) / float64(capacity)))
-	hashs := make([]*hash.Hash, hashsCnt)
-	for i := 0; i < hashsCnt; i++ {
-		hashs[i] = hash.New()
+	seedCnt := int(math.Ceil(math.Ln2 * float64(bitCnt) / float64(capacity)))
+	seeds := make([]uint64, seedCnt)
+	source := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < seedCnt; i++ {
+		seeds[i] = source.Uint64()
 	}
-
 	return &Filter{
-		bits:    make([]uint64, bitsCnt/uint64Bits),
-		bitsCnt: bitsCnt,
-		hashs:   hashs,
+		bits:   make([]uint64, bitCnt/uint64Bits),
+		bitCnt: bitCnt,
+		seeds:  seeds,
 	}
 }
 
 // 添加元素
-func (f *Filter) Add(b []byte) {
-	for _, h := range f.hashs {
-		index, offset := f.pos(h, b)
+func (f *Filter) Add(hash uint64) {
+	for _, seed := range f.seeds {
+		index, offset := f.pos(hash, seed)
 		f.bits[index] |= 1 << offset
 	}
 }
 
 // 添加元素
+func (f *Filter) AddBytes(b []byte) {
+	fnvHash := fnv.New64()
+	fnvHash.Write(b)
+	f.Add(fnvHash.Sum64())
+}
+
+// 添加元素
 // 字符串类型
 func (f *Filter) AddString(s string) {
-	f.Add([]byte(s))
+	f.AddBytes([]byte(s))
 }
 
 // 元素是否存在
 // true表示可能存在
-func (f *Filter) Contains(b []byte) bool {
-	for _, h := range f.hashs {
-		index, offset := f.pos(h, b)
+func (f *Filter) Contains(hash uint64) bool {
+	for _, seed := range f.seeds {
+		index, offset := f.pos(hash, seed)
 		mask := uint64(1) << offset
 		// 判断这一位是否位1
 		if (f.bits[index] & mask) != mask {
@@ -70,9 +77,17 @@ func (f *Filter) Contains(b []byte) bool {
 }
 
 // 元素是否存在
+// true表示可能存在
+func (f *Filter) ContainsBytes(b []byte) bool {
+	fnvHash := fnv.New64()
+	fnvHash.Write(b)
+	return f.Contains(fnvHash.Sum64())
+}
+
+// 元素是否存在
 // 字符串类型
 func (f *Filter) ContainsString(s string) bool {
-	return f.Contains([]byte(s))
+	return f.ContainsBytes([]byte(s))
 }
 
 // 清空过滤器
@@ -84,14 +99,13 @@ func (f *Filter) Clear() {
 
 // bit位数
 func (f *Filter) Len() uint64 {
-	return f.bitsCnt
+	return f.bitCnt
 }
 
 // 获取对应元素下标和偏移
-func (f *Filter) pos(h *hash.Hash, b []byte) (uint64, uint64) {
-	hashValue := h.Sum64(b)
+func (f *Filter) pos(h, seed uint64) (uint64, uint64) {
 	// 按照位计算的偏移
-	bitsIndex := hashValue % f.bitsCnt
+	bitsIndex := (h ^ seed) % f.bitCnt
 	// 因为一个元素64位，因此需要转换
 	index := bitsIndex / uint64Bits
 	// 在一个元素里面的偏移
