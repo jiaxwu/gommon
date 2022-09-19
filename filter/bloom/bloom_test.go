@@ -26,23 +26,6 @@ func TestNew(t *testing.T) {
 	}
 }
 
-func BenchmarkAddAndContains(b *testing.B) {
-	buf := make([]byte, 8192)
-	for length := 1; length <= cap(buf); length *= 2 {
-		b.Run(strconv.Itoa(length), func(b *testing.B) {
-			f := New(uint64(b.N), 0.0001)
-			buf = buf[:length]
-			b.SetBytes(int64(length))
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				f.AddBytes(buf)
-				f.ContainsBytes(buf)
-			}
-		})
-	}
-}
-
 func TestFalsePositiveRate(t *testing.T) {
 	capacity := uint64(10000000)
 	rounds := uint64(10000000)
@@ -72,5 +55,36 @@ func TestFalsePositiveRate(t *testing.T) {
 	fpRate := float64(falsePositiveCount) / (float64(rounds))
 	if !(fpRate >= falsePositiveRate*(0.9) && fpRate <= falsePositiveRate*(1.1)) {
 		t.Errorf("fpRate not accuracy %v", fpRate)
+	}
+}
+
+func FuzzAddAndContains(f *testing.F) {
+	seeds := []string{"abc", "bbb", "0", "1", ""}
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+	bf := New(1000000, 0.01)
+	f.Fuzz(func(t *testing.T, a string) {
+		bf.AddString(a)
+		if !bf.ContainsString(a) {
+			t.Errorf("want %v, but %v", true, false)
+		}
+	})
+}
+
+func BenchmarkAddAndContains(b *testing.B) {
+	buf := make([]byte, 8192)
+	for length := 1; length <= cap(buf); length *= 2 {
+		b.Run(strconv.Itoa(length), func(b *testing.B) {
+			f := New(uint64(b.N), 0.0001)
+			buf = buf[:length]
+			b.SetBytes(int64(length))
+			b.ReportAllocs()
+			b.ResetTimer()
+			for i := 0; i < b.N; i++ {
+				f.AddBytes(buf)
+				f.ContainsBytes(buf)
+			}
+		})
 	}
 }

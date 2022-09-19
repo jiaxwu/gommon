@@ -1,6 +1,7 @@
 package cm
 
 import (
+	"hash/fnv"
 	"math"
 	"strconv"
 	"testing"
@@ -111,4 +112,43 @@ func BenchmarkAddAndEstimate(b *testing.B) {
 			}
 		})
 	}
+}
+
+func FuzzAddAndEstimate(f *testing.F) {
+	seeds := []string{"abc", "bbb", "0", "1", ""}
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+	n := uint64(1000000)
+	errorRange := uint64(10)
+	errorRate := 0.001
+	cm := New(n, errorRange, errorRate)
+	m := map[uint64]uint64{}
+	count := uint64(0)
+	f.Fuzz(func(t *testing.T, a string) {
+		h := fnv.New64()
+		h.Write([]byte(a))
+		hashValue := h.Sum64()
+		cm.Add(hashValue, 1)
+		m[hashValue]++
+		count++
+		if count%n == 0 {
+			errorCount := uint64(0)
+			errorSum := uint64(0)
+			for k, count := range m {
+				estimateCount := cm.Estimate(k)
+				if count+errorRange < estimateCount {
+					errorCount++
+					errorSum += (estimateCount - count)
+				}
+			}
+			if errorCount != 0 {
+				errorRateResult := float64(errorCount) / float64(n)
+				errorRangeResult := errorSum / errorCount
+				if errorRateResult > errorRate {
+					t.Errorf("count=%v, errorCount=%v, errorSum=%v, errorRate=%f, errorRange=%v", count, errorCount, errorSum, errorRateResult, errorRangeResult)
+				}
+			}
+		}
+	})
 }
