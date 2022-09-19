@@ -120,3 +120,35 @@ func TestCache_Entries(t *testing.T) {
 		}
 	}
 }
+
+// hitRate=0.371382
+// Fuzz基本随机，对缓存测试并不科学
+func FuzzHitRate(f *testing.F) {
+	seeds := []string{"abc", "bbb", "0", "1", "", "zdas", "xzasd", "1312", "0", "0", "0", "0", "1", "1", "1"}
+	for _, seed := range seeds {
+		f.Add(seed)
+	}
+	n := 100000
+	mul := 50
+	c := New[string, int](func(key string) []byte {
+		return []byte(key)
+	}, n)
+	count := 0
+	hitCount := 0
+	m := map[string]int{}
+	f.Fuzz(func(t *testing.T, a string) {
+		count++
+		m[a]++
+		_, exists := c.Get(a)
+		if exists {
+			hitCount++
+		} else {
+			c.Put(a, 0)
+		}
+		if count == n*mul {
+			hitRate := float64(hitCount) / float64(count)
+			t.Errorf("count=%v, hitCount=%v, hitRate=%f, items=%v", count, hitCount, hitRate, len(m))
+			t.SkipNow()
+		}
+	})
+}
