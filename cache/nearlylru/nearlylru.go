@@ -20,9 +20,9 @@ type lastAccessEntry[K comparable, V any] struct {
 // 非线程安全，请根据业务加锁
 type Cache[K comparable, V any] struct {
 	entries  map[K]*lastAccessEntry[K, V]
-	capacity int
-	samples  int
-	onEvict  cache.OnEvict[K, V]
+	capacity int                 // 容量
+	samples  int                 // 淘汰时采样数量
+	onEvict  cache.OnEvict[K, V] // 淘汰时的回调函数
 }
 
 func New[K comparable, V any](capacity int) *Cache[K, V] {
@@ -43,9 +43,11 @@ func (c *Cache[K, V]) SetOnEvict(onEvict cache.OnEvict[K, V]) {
 
 // 设置采样个数
 func (c *Cache[K, V]) SetSamples(samples int) {
+	// 采样数量不能太小，否则和随机没区别
 	if samples < MinSamples {
 		samples = MinSamples
 	}
+	// 也不能太大，否则和LRU没区别
 	if c.Cap() < samples {
 		panic("too large samples")
 	}
@@ -154,20 +156,23 @@ func (c *Cache[K, V]) Remove(key K) bool {
 
 // 淘汰元素
 func (c *Cache[K, V]) Evict() *cache.Entry[K, V] {
+	// 采样
 	var evictEntry *lastAccessEntry[K, V]
 	i := 0
 	for _, entry := range c.entries {
-		if i >= c.samples {
-			break
-		}
+		// 挑选里面时间戳最小的
 		if evictEntry == nil || entry.lastAccess.Before(evictEntry.lastAccess) {
 			evictEntry = entry
 		}
 		i++
+		if i >= c.samples {
+			break
+		}
 	}
 	if evictEntry == nil {
 		return nil
 	}
+	// 淘汰
 	delete(c.entries, evictEntry.entry.Key)
 	// 回调
 	if c.onEvict != nil {

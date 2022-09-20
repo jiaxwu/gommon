@@ -47,4 +47,5 @@ func testHitRate(t *testing.T, reqs []string, cachePercentage float64) {
 	}
 	hitRate := float64(hitCount) / float64(count)
 	t.Logf("cachePercentage=%.1f%%, count=%v, hitCount=%v, hitRate=%.2f%%", cachePercentage*100, count, hitCount, hitRate*100)
+	// t.Logf("|%.1f%%| %v|%.2f%%|", cachePercentage*100, hitCount, hitRate*100)
 }
