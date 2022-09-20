@@ -1,6 +1,8 @@
 package arc
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/jiaxwu/gommon/cache"
@@ -109,29 +111,45 @@ func TestCache_Entries(t *testing.T) {
 	}
 }
 
-// hitRate=0.448867
-func FuzzHitRate(f *testing.F) {
-	seeds := []string{"abc", "bbb", "0", "1", ""}
-	for _, seed := range seeds {
-		f.Add(seed)
+// arc_test.go:154: cachePercentage=0.1%, count=206048, hitCount=30244, hitRate=14.68%
+// arc_test.go:154: cachePercentage=0.3%, count=206048, hitCount=68373, hitRate=33.18%
+// arc_test.go:154: cachePercentage=0.5%, count=206048, hitCount=103926, hitRate=50.44%
+// arc_test.go:154: cachePercentage=0.7%, count=206048, hitCount=135787, hitRate=65.90%
+// arc_test.go:154: cachePercentage=1.0%, count=206048, hitCount=170632, hitRate=82.81%
+// arc_test.go:154: cachePercentage=2.0%, count=206048, hitCount=189194, hitRate=91.82%
+// arc_test.go:154: cachePercentage=3.0%, count=206048, hitCount=191151, hitRate=92.77%
+// arc_test.go:154: cachePercentage=5.0%, count=206048, hitCount=192620, hitRate=93.48%
+// arc_test.go:154: cachePercentage=10.0%, count=206048, hitCount=192842, hitRate=93.59%
+func TestHitRate(t *testing.T) {
+	dataset, err := os.ReadFile("../dataset")
+	if err != nil {
+		t.Errorf("read dataset error %v", err)
 	}
-	n := 100000
-	mul := 20
+	reqs := strings.Split(string(dataset), ",")
+	testHitRate(t, reqs, 0.001)
+	testHitRate(t, reqs, 0.003)
+	testHitRate(t, reqs, 0.005)
+	testHitRate(t, reqs, 0.007)
+	testHitRate(t, reqs, 0.01)
+	testHitRate(t, reqs, 0.02)
+	testHitRate(t, reqs, 0.03)
+	testHitRate(t, reqs, 0.05)
+	testHitRate(t, reqs, 0.1)
+}
+
+func testHitRate(t *testing.T, reqs []string, cachePercentage float64) {
+	count := len(reqs)
+	n := int(float64(count) * cachePercentage)
 	c := New[string, int](n)
-	count := 0
 	hitCount := 0
-	f.Fuzz(func(t *testing.T, a string) {
-		count++
-		_, exists := c.Get(a)
+	for _, req := range reqs {
+		_, exists := c.Get(req)
 		if exists {
 			hitCount++
 		} else {
-			c.Put(a, 0)
+			c.Put(req, 0)
 		}
-		if count == n*mul {
-			hitRate := float64(hitCount) / float64(count)
-			t.Errorf("count=%v, hitCount=%v, hitRate=%f", count, hitCount, hitRate)
-			t.SkipNow()
-		}
-	})
+	}
+	hitRate := float64(hitCount) / float64(count)
+	t.Logf("cachePercentage=%.1f%%, count=%v, hitCount=%v, hitRate=%.2f%%", cachePercentage*100, count, hitCount, hitRate*100)
 }

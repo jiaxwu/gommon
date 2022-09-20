@@ -1,6 +1,8 @@
 package tinylfu
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/jiaxwu/gommon/cache"
@@ -121,34 +123,47 @@ func TestCache_Entries(t *testing.T) {
 	}
 }
 
-// hitRate=0.371382
-// Fuzz基本随机，对缓存测试并不科学
-func FuzzHitRate(f *testing.F) {
-	seeds := []string{"abc", "bbb", "0", "1", "", "zdas", "xzasd", "1312", "0", "0", "0", "0", "1", "1", "1"}
-	for _, seed := range seeds {
-		f.Add(seed)
+// tinylfu_test.go:159: cachePercentage=0.1%, count=206048, hitCount=30850, hitRate=14.97%
+// tinylfu_test.go:159: cachePercentage=0.3%, count=206048, hitCount=70378, hitRate=34.16%
+// tinylfu_test.go:159: cachePercentage=0.5%, count=206048, hitCount=106413, hitRate=51.64%
+// tinylfu_test.go:159: cachePercentage=0.7%, count=206048, hitCount=138563, hitRate=67.25%
+// tinylfu_test.go:159: cachePercentage=1.0%, count=206048, hitCount=170996, hitRate=82.99%
+// tinylfu_test.go:159: cachePercentage=2.0%, count=206048, hitCount=188875, hitRate=91.67%
+// tinylfu_test.go:159: cachePercentage=3.0%, count=206048, hitCount=191104, hitRate=92.75%
+// tinylfu_test.go:159: cachePercentage=5.0%, count=206048, hitCount=192629, hitRate=93.49%
+// tinylfu_test.go:159: cachePercentage=10.0%, count=206048, hitCount=192842, hitRate=93.59%
+func TestHitRate(t *testing.T) {
+	dataset, err := os.ReadFile("../dataset")
+	if err != nil {
+		t.Errorf("read dataset error %v", err)
 	}
-	n := 100000
-	mul := 50
+	reqs := strings.Split(string(dataset), ",")
+	testHitRate(t, reqs, 0.001)
+	testHitRate(t, reqs, 0.003)
+	testHitRate(t, reqs, 0.005)
+	testHitRate(t, reqs, 0.007)
+	testHitRate(t, reqs, 0.01)
+	testHitRate(t, reqs, 0.02)
+	testHitRate(t, reqs, 0.03)
+	testHitRate(t, reqs, 0.05)
+	testHitRate(t, reqs, 0.1)
+}
+
+func testHitRate(t *testing.T, reqs []string, cachePercentage float64) {
+	count := len(reqs)
+	n := int(float64(count) * cachePercentage)
 	c := New[string, int](func(key string) []byte {
 		return []byte(key)
 	}, n)
-	count := 0
 	hitCount := 0
-	m := map[string]int{}
-	f.Fuzz(func(t *testing.T, a string) {
-		count++
-		m[a]++
-		_, exists := c.Get(a)
+	for _, req := range reqs {
+		_, exists := c.Get(req)
 		if exists {
 			hitCount++
 		} else {
-			c.Put(a, 0)
+			c.Put(req, 0)
 		}
-		if count == n*mul {
-			hitRate := float64(hitCount) / float64(count)
-			t.Errorf("count=%v, hitCount=%v, hitRate=%f, items=%v", count, hitCount, hitRate, len(m))
-			t.SkipNow()
-		}
-	})
+	}
+	hitRate := float64(hitCount) / float64(count)
+	t.Logf("cachePercentage=%.1f%%, count=%v, hitCount=%v, hitRate=%.2f%%", cachePercentage*100, count, hitCount, hitRate*100)
 }
