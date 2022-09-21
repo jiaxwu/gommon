@@ -1,9 +1,11 @@
-package heap
+package meap
 
 type Entry[K comparable, V any] struct {
 	Key   K
 	Value V
 }
+
+type LessFunc[K comparable, V any] func(e1 Entry[K, V], e2 Entry[K, V]) bool
 
 // 可以log(n)删除任意元素的堆
 // 可以支持随机查询
@@ -12,10 +14,10 @@ type Entry[K comparable, V any] struct {
 type Meap[K comparable, V any] struct {
 	h        []Entry[K, V]
 	m        map[K]int
-	lessFunc LessFunc[Entry[K, V]]
+	lessFunc LessFunc[K, V]
 }
 
-func NewRemovableHeap[K comparable, V any](lessFunc LessFunc[Entry[K, V]]) *Meap[K, V] {
+func New[K comparable, V any](lessFunc LessFunc[K, V]) *Meap[K, V] {
 	return &Meap[K, V]{
 		m:        make(map[K]int),
 		lessFunc: lessFunc,

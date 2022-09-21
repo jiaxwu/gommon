@@ -1,11 +1,11 @@
-package heap
+package meap
 
 import (
 	"testing"
 )
 
-func TestRemovableHeapAll(t *testing.T) {
-	h := NewRemovableHeap(func(e1 Entry[int, int], e2 Entry[int, int]) bool {
+func TestAll(t *testing.T) {
+	h := New(func(e1 Entry[int, int], e2 Entry[int, int]) bool {
 		return e1.Value > e2.Value
 	})
 	h.Push(1, 5)
@@ -33,8 +33,8 @@ func TestRemovableHeapAll(t *testing.T) {
 	}
 }
 
-func TestRemovableHeapRemove(t *testing.T) {
-	h := NewRemovableHeap(func(e1 Entry[int, int], e2 Entry[int, int]) bool {
+func TestRemove(t *testing.T) {
+	h := New(func(e1 Entry[int, int], e2 Entry[int, int]) bool {
 		return e1.Value > e2.Value
 	})
 	h.Push(1, 5)
@@ -77,12 +77,12 @@ func TestRemovableHeapRemove(t *testing.T) {
 	}
 }
 
-func FuzzRemovableHeap(f *testing.F) {
+func Fuzz(f *testing.F) {
 	seeds := [][]int{{1, 2}, {4, 6}, {3, 2}}
 	for _, seed := range seeds {
 		f.Add(seed[0], seed[1])
 	}
-	h := NewRemovableHeap(func(e1 Entry[int, int], e2 Entry[int, int]) bool {
+	h := New(func(e1 Entry[int, int], e2 Entry[int, int]) bool {
 		return e1.Value > e2.Value
 	})
 	m := map[int]bool{}
