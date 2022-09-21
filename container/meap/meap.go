@@ -7,6 +7,7 @@ type Entry[K comparable, V any] struct {
 
 type LessFunc[K comparable, V any] func(e1 Entry[K, V], e2 Entry[K, V]) bool
 
+// meap=m[ap]+[h]eap
 // 可以log(n)删除任意元素的堆
 // 可以支持随机查询
 // 是堆和map的结合
