@@ -7,7 +7,7 @@ type Heap[T any] struct {
 	lessFunc LessFunc[T]
 }
 
-func New[T any](h []T, lessFunc func(e1 T, e2 T) bool) *Heap[T] {
+func New[T any](h []T, lessFunc LessFunc[T]) *Heap[T] {
 	heap := &Heap[T]{
 		h:        h,
 		lessFunc: lessFunc,
@@ -47,7 +47,7 @@ func (h *Heap[T]) Empty() bool {
 
 // Remove removes and returns the element at index i from the heap.
 // The complexity is O(log n) where n = h.Len().
-func (h *Heap[T]) Remove(i int) any {
+func (h *Heap[T]) Remove(i int) T {
 	n := h.Len() - 1
 	if n != i {
 		h.swap(i, n)
