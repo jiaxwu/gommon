@@ -57,10 +57,7 @@ func TestRemovableHeapRemove(t *testing.T) {
 		t.Errorf("Get() = %v, want %v", v, 2)
 	}
 
-	e = h.Remove(5)
-	if e.Value != 2 {
-		t.Errorf("Remove() = %v, want %v", e.Value, 2)
-	}
+	h.Remove(5)
 
 	v, ok = h.Get(5)
 	if ok || v != 0 {
