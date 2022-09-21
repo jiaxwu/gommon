@@ -150,6 +150,7 @@ func (h *Meap[K, V]) swap(i, j int) {
 	h.m[h.h[j].Key] = j
 }
 
+// 添加一个元素到堆的末尾
 func (h *Meap[K, V]) push(key K, value V) {
 	h.m[key] = h.Len()
 	h.h = append(h.h, Entry[K, V]{
@@ -158,6 +159,7 @@ func (h *Meap[K, V]) push(key K, value V) {
 	})
 }
 
+// 从堆的末尾移除元素
 func (h *Meap[K, V]) pop() Entry[K, V] {
 	elem := h.h[h.Len()-1]
 	h.h = h.h[:h.Len()-1]
