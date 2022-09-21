@@ -31,6 +31,13 @@ func TestAll(t *testing.T) {
 		}
 		i--
 	}
+
+	h.Push(9, 1)
+	h.Push(9, 2)
+	e = h.Peek()
+	if e.Value != 2 {
+		t.Errorf("Peek() = %v, want %v", e.Value, 2)
+	}
 }
 
 func TestRemove(t *testing.T) {
