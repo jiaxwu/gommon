@@ -5,42 +5,44 @@ import (
 	"sync"
 	"time"
 
-	"github.com/jiaxwu/gommon/container/meap"
+	"github.com/jiaxwu/gommon/container/heap"
 )
 
-type Entry[K comparable, V any] struct {
-	Key     K
-	Value   V
-	Expired time.Time // 过期时间
+type Entry[T any] struct {
+	Value   T
+	Expired time.Time // 到期时间
 }
 
 // 延迟队列
-type DelayQueue[K comparable, V any] struct {
-	meap   *meap.Meap[K, Entry[K, V]]
-	mutex  sync.Mutex
+type DelayQueue[T any] struct {
+	h      *heap.Heap[*Entry[T]]
+	mutex  sync.Mutex    // 保证并发安全
 	wakeup chan struct{} // 唤醒通道
 }
 
-func New[K comparable, V any]() *DelayQueue[K, V] {
-	return &DelayQueue[K, V]{
-		meap: meap.New(func(e1, e2 meap.Entry[K, Entry[K, V]]) bool {
-			return e1.Value.Expired.Before(e2.Value.Expired)
+// 创建延迟队列
+func New[T any]() *DelayQueue[T] {
+	return &DelayQueue[T]{
+		h: heap.New(nil, func(e1, e2 *Entry[T]) bool {
+			return e1.Expired.Before(e2.Expired)
 		}),
 		wakeup: make(chan struct{}, 1),
 	}
 }
 
 // 添加延迟元素到队列
-func (q *DelayQueue[K, V]) Push(key K, value V, delay time.Duration) {
+func (q *DelayQueue[T]) Push(value T, delay time.Duration) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	q.meap.Push(key, Entry[K, V]{
-		Key:     key,
+	entry := &Entry[T]{
 		Value:   value,
 		Expired: time.Now().Add(delay),
-	})
+	}
+	q.h.Push(entry)
 	// 唤醒等待的协程
-	if q.meap.Peek().Key == key {
+	// 这里表示新添加的元素到期时间是最早的，或者原来队列为空
+	// 因此必须唤醒等待的协程，因为可以拿到更早到期的元素
+	if q.h.Peek() == entry {
 		select {
 		case q.wakeup <- struct{}{}:
 		default:
@@ -48,23 +50,23 @@ func (q *DelayQueue[K, V]) Push(key K, value V, delay time.Duration) {
 	}
 }
 
-// 等待直到有元素过期
+// 等待直到有元素到期
 // 或者ctx被关闭
-func (q *DelayQueue[K, V]) Take(ctx context.Context) (Entry[K, V], bool) {
+func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 	for {
 		q.mutex.Lock()
 		var expired <-chan time.Time
 		// 有元素
-		if !q.meap.Empty() {
+		if !q.h.Empty() {
 			// 获取元素
-			entry := q.meap.Peek()
-			if time.Now().After(entry.Value.Expired) {
-				q.meap.Pop()
+			entry := q.h.Peek()
+			if time.Now().After(entry.Expired) {
+				q.h.Pop()
 				q.mutex.Unlock()
 				return entry.Value, true
 			}
-			// 过期时间
-			expired = time.After(time.Until(entry.Value.Expired))
+			// 到期时间
+			expired = time.After(time.Until(entry.Expired))
 		}
 		// 避免被之前的元素假唤醒
 		select {
@@ -74,21 +76,22 @@ func (q *DelayQueue[K, V]) Take(ctx context.Context) (Entry[K, V], bool) {
 		q.mutex.Unlock()
 
 		select {
-		// 新的更快过期元素
+		// 新的更快到期元素
 		case <-q.wakeup:
-			// 首元素过期
+			// 首元素到期
 		case <-expired:
 			// 被关闭
 		case <-ctx.Done():
-			return Entry[K, V]{}, false
+			var t T
+			return t, false
 		}
 	}
 }
 
-// 返回一个通道，输出过期元素
+// 返回一个通道，输出到期元素
 // size是通道缓存大小
-func (q *DelayQueue[K, V]) Channel(ctx context.Context, size int) <-chan Entry[K, V] {
-	out := make(chan Entry[K, V], size)
+func (q *DelayQueue[T]) Channel(ctx context.Context, size int) <-chan T {
+	out := make(chan T, size)
 	go func() {
 		for {
 			entry, ok := q.Take(ctx)
@@ -102,50 +105,39 @@ func (q *DelayQueue[K, V]) Channel(ctx context.Context, size int) <-chan Entry[K
 }
 
 // 获取队头元素
-func (q *DelayQueue[K, V]) Peek() (Entry[K, V], bool) {
+func (q *DelayQueue[T]) Peek() (T, bool) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	if q.meap.Empty() {
-		return Entry[K, V]{}, false
+	if q.h.Empty() {
+		var t T
+		return t, false
 	}
-	return q.meap.Peek().Value, true
+	return q.h.Peek().Value, true
 }
 
-// 获取过期元素
-func (q *DelayQueue[K, V]) Pop() (Entry[K, V], bool) {
+// 获取到期元素
+func (q *DelayQueue[T]) Pop() (T, bool) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	// 没元素
-	if q.meap.Empty() {
-		return Entry[K, V]{}, false
+	if q.h.Empty() {
+		var t T
+		return t, false
 	}
-	entry := q.meap.Peek()
-	// 还没元素过期
-	if time.Now().Before(entry.Value.Expired) {
-		return Entry[K, V]{}, false
+	entry := q.h.Peek()
+	// 还没元素到期
+	if time.Now().Before(entry.Expired) {
+		var t T
+		return t, false
 	}
 	// 移除元素
-	q.meap.Pop()
+	q.h.Pop()
 	return entry.Value, true
 }
 
-// 获取元素
-func (q *DelayQueue[K, V]) Get(key K) (Entry[K, V], bool) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	return q.meap.Get(key)
-}
-
-// 移除任务
-func (q *DelayQueue[K, V]) Remove(key K) {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	q.meap.Remove(key)
-}
-
 // 是否队列为空
-func (q *DelayQueue[K, V]) Empty() bool {
+func (q *DelayQueue[T]) Empty() bool {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	return q.meap.Empty()
+	return q.h.Empty()
 }
