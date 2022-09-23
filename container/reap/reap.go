@@ -5,6 +5,7 @@ type Entry[T any] struct {
 	index int
 }
 
+// 值
 func (e *Entry[T]) Value() T {
 	return e.value
 }
@@ -45,10 +46,10 @@ func (h *Reap[T]) Push(value T) *Entry[T] {
 }
 
 // 移除堆里对应的元素
-func (h *Reap[T]) Remove(e *Entry[T]) {
+func (h *Reap[T]) Remove(e *Entry[T]) bool {
 	// 不能已经被删除
 	if e.index == -1 {
-		return
+		return false
 	}
 	// 删除元素
 	i := e.index
@@ -60,6 +61,19 @@ func (h *Reap[T]) Remove(e *Entry[T]) {
 		}
 	}
 	h.pop()
+	return true
+}
+
+// 设置元素的值，会重新调整堆
+func (h *Reap[T]) SetValue(e *Entry[T], value T) bool {
+	// 不能已经被删除
+	if e.index == -1 {
+		return false
+	}
+	// 重新设置值并调整
+	e.value = value
+	h.fix(e.index)
+	return true
 }
 
 // 堆长度
@@ -70,6 +84,16 @@ func (h *Reap[T]) Len() int {
 // 堆是否为空
 func (h *Reap[T]) Empty() bool {
 	return h.Len() == 0
+}
+
+// Fix re-establishes the heap ordering after the element at index i has changed its value.
+// Changing the value of the element at index i and then calling Fix is equivalent to,
+// but less expensive than, calling Remove(h, i) followed by a Push of the new value.
+// The complexity is O(log n) where n = h.Len().
+func (h *Reap[T]) fix(i int) {
+	if !h.down(i, h.Len()) {
+		h.up(i)
+	}
 }
 
 func (h *Reap[T]) up(j int) {

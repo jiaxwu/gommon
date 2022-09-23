@@ -68,6 +68,13 @@ func TestRemove(t *testing.T) {
 		}
 		i--
 	}
+
+	entry = h.Push(1)
+	h.SetValue(entry, 2)
+	e = h.Peek()
+	if e != 2 {
+		t.Errorf("Peek() = %v, want %v", e, 2)
+	}
 }
 
 func Fuzz(f *testing.F) {
