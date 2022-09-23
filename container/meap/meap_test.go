@@ -103,35 +103,3 @@ func Fuzz(f *testing.F) {
 		h.Push(key, value)
 	})
 }
-
-var cases = []struct {
-	name string
-	N    int // the data size (i.e. number of existing timers)
-}{
-	{"N-1m", 1000000},
-	{"N-5m", 5000000},
-	{"N-10m", 10000000},
-}
-
-func BenchmarkPushAndPop(b *testing.B) {
-	for _, c := range cases {
-		b.Run(c.name, func(b *testing.B) {
-			q := New(func(e1, e2 Entry[int, int]) bool {
-				return e1.Value < e2.Value
-			})
-			for i := 0; i < c.N; i++ {
-				q.Push(i, i)
-			}
-			b.ResetTimer()
-
-			for i := c.N; i < c.N+b.N; i++ {
-				q.Push(i, i)
-			}
-
-			for i := 0; i < b.N; i++ {
-				q.Pop()
-			}
-			b.StopTimer()
-		})
-	}
-}
