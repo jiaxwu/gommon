@@ -50,6 +50,7 @@ func (h *Reap[T]) Remove(e *Entry[T]) {
 	if e.index == -1 {
 		return
 	}
+	// 删除元素
 	i := e.index
 	n := h.Len() - 1
 	if n != i {
@@ -127,6 +128,7 @@ func (h *Reap[T]) push(value T) *Entry[T] {
 func (h *Reap[T]) pop() T {
 	elem := h.h[h.Len()-1]
 	h.h = h.h[:h.Len()-1]
+	// 标记元素已经被删除
 	elem.index = -1
 	return elem.value
 }
