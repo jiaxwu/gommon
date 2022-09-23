@@ -3,7 +3,6 @@ package meap
 type Entry[T any] struct {
 	value T
 	index int
-	h     *Reap[T]
 }
 
 func (e *Entry[T]) Value() T {
@@ -48,8 +47,8 @@ func (h *Reap[T]) Push(value T) *Entry[T] {
 
 // 移除堆里对应index的元素
 func (h *Reap[T]) Remove(e *Entry[T]) {
-	// 不能已经被删除或者不是这个堆所属元素
-	if e.index == -1 || e.h != h {
+	// 不能已经被删除
+	if e.index == -1 {
 		return
 	}
 	i := e.index
@@ -71,16 +70,6 @@ func (h *Reap[T]) Len() int {
 // 堆是否为空
 func (h *Reap[T]) Empty() bool {
 	return h.Len() == 0
-}
-
-// Fix re-establishes the heap ordering after the element at index i has changed its value.
-// Changing the value of the element at index i and then calling Fix is equivalent to,
-// but less expensive than, calling Remove(h, i) followed by a Push of the new value.
-// The complexity is O(log n) where n = h.Len().
-func (h *Reap[T]) fix(i int) {
-	if !h.down(i, h.Len()) {
-		h.up(i)
-	}
 }
 
 func (h *Reap[T]) up(j int) {
@@ -131,7 +120,6 @@ func (h *Reap[T]) push(value T) *Entry[T] {
 	entry := &Entry[T]{
 		value: value,
 		index: h.Len(),
-		h:     h,
 	}
 	h.h = append(h.h, entry)
 	return entry
@@ -141,7 +129,6 @@ func (h *Reap[T]) push(value T) *Entry[T] {
 func (h *Reap[T]) pop() T {
 	elem := h.h[h.Len()-1]
 	h.h = h.h[:h.Len()-1]
-	elem.h = nil
 	elem.index = -1
 	return elem.value
 }
