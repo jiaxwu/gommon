@@ -44,7 +44,7 @@ func (h *Reap[T]) Push(value T) *Entry[T] {
 	return entry
 }
 
-// 移除堆里对应index的元素
+// 移除堆里对应的元素
 func (h *Reap[T]) Remove(e *Entry[T]) {
 	// 不能已经被删除
 	if e.index == -1 {
