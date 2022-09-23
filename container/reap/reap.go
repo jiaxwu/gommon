@@ -39,7 +39,6 @@ func (h *Reap[T]) Peek() T {
 
 // 添加元素到堆
 func (h *Reap[T]) Push(value T) *Entry[T] {
-	// 否则添加元素
 	entry := h.push(value)
 	h.up(h.Len() - 1)
 	return entry
