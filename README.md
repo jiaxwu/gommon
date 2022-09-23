@@ -26,9 +26,6 @@
 # crypto
 加密算法
 
-# delayqueue
-泛型延迟队列
-
 # env
 获取环境变量的工具
 
@@ -52,6 +49,9 @@
 
 # slices
 泛型slice工具
+
+# timer
+定时器，比如泛型延迟队列、时间轮
 
 # validate
 基于函数的参数校验，包含数值、字符串和slice类型校验函数
