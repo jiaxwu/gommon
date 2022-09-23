@@ -10,11 +10,6 @@ func (e *Entry[T]) Value() T {
 	return e.value
 }
 
-// 移除堆里对应Key的元素
-func (e *Entry[T]) Remove() {
-	e.h.Remove(e)
-}
-
 type LessFunc[T any] func(e1, e2 T) bool
 
 // reap=r[emovable]+[h]eap
