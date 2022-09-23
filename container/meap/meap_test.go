@@ -5,7 +5,7 @@ import (
 )
 
 func TestAll(t *testing.T) {
-	h := New(func(e1 Entry[int, int], e2 Entry[int, int]) bool {
+	h := New(func(e1, e2 Entry[int, int]) bool {
 		return e1.Value > e2.Value
 	})
 	h.Push(1, 5)
@@ -41,7 +41,7 @@ func TestAll(t *testing.T) {
 }
 
 func TestRemove(t *testing.T) {
-	h := New(func(e1 Entry[int, int], e2 Entry[int, int]) bool {
+	h := New(func(e1, e2 Entry[int, int]) bool {
 		return e1.Value > e2.Value
 	})
 	h.Push(1, 5)
@@ -89,7 +89,7 @@ func Fuzz(f *testing.F) {
 	for _, seed := range seeds {
 		f.Add(seed[0], seed[1])
 	}
-	h := New(func(e1 Entry[int, int], e2 Entry[int, int]) bool {
+	h := New(func(e1, e2 Entry[int, int]) bool {
 		return e1.Value > e2.Value
 	})
 	m := map[int]bool{}
