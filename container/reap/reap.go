@@ -108,7 +108,6 @@ func (h *Reap[T]) less(i, j int) bool {
 }
 
 // swap两个元素的时候
-// 两个元素在map里的下标也要交换
 func (h *Reap[T]) swap(i, j int) {
 	h.h[i], h.h[j] = h.h[j], h.h[i]
 	h.h[i].index = i
