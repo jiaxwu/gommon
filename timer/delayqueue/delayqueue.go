@@ -8,14 +8,14 @@ import (
 	"github.com/jiaxwu/gommon/container/heap"
 )
 
-type Entry[T any] struct {
-	Value   T
-	Expired time.Time // 到期时间
+type entry[T any] struct {
+	value   T
+	expired time.Time // 到期时间
 }
 
 // 延迟队列
 type DelayQueue[T any] struct {
-	h      *heap.Heap[*Entry[T]]
+	h      *heap.Heap[*entry[T]]
 	mutex  sync.Mutex    // 保证并发安全
 	wakeup chan struct{} // 唤醒通道
 }
@@ -23,8 +23,8 @@ type DelayQueue[T any] struct {
 // 创建延迟队列
 func New[T any]() *DelayQueue[T] {
 	return &DelayQueue[T]{
-		h: heap.New(nil, func(e1, e2 *Entry[T]) bool {
-			return e1.Expired.Before(e2.Expired)
+		h: heap.New(nil, func(e1, e2 *entry[T]) bool {
+			return e1.expired.Before(e2.expired)
 		}),
 		wakeup: make(chan struct{}, 1),
 	}
@@ -34,9 +34,9 @@ func New[T any]() *DelayQueue[T] {
 func (q *DelayQueue[T]) Push(value T, delay time.Duration) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	entry := &Entry[T]{
-		Value:   value,
-		Expired: time.Now().Add(delay),
+	entry := &entry[T]{
+		value:   value,
+		expired: time.Now().Add(delay),
 	}
 	q.h.Push(entry)
 	// 唤醒等待的协程
@@ -60,13 +60,13 @@ func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 		if !q.h.Empty() {
 			// 获取元素
 			entry := q.h.Peek()
-			if time.Now().After(entry.Expired) {
+			if time.Now().After(entry.expired) {
 				q.h.Pop()
 				q.mutex.Unlock()
-				return entry.Value, true
+				return entry.value, true
 			}
 			// 到期时间，使用time.NewTimer()才能搞调用Stop()，从而释放定时器
-			expired = time.NewTimer(time.Until(entry.Expired))
+			expired = time.NewTimer(time.Until(entry.expired))
 		}
 		// 避免被之前的元素假唤醒
 		select {
@@ -121,7 +121,7 @@ func (q *DelayQueue[T]) Peek() (T, bool) {
 		var t T
 		return t, false
 	}
-	return q.h.Peek().Value, true
+	return q.h.Peek().value, true
 }
 
 // 获取到期元素
@@ -135,13 +135,13 @@ func (q *DelayQueue[T]) Pop() (T, bool) {
 	}
 	entry := q.h.Peek()
 	// 还没元素到期
-	if time.Now().Before(entry.Expired) {
+	if time.Now().Before(entry.expired) {
 		var t T
 		return t, false
 	}
 	// 移除元素
 	q.h.Pop()
-	return entry.Value, true
+	return entry.value, true
 }
 
 // 是否队列为空
