@@ -105,6 +105,7 @@ func (q *DelayQueue[T]) Channel(ctx context.Context, size int) <-chan T {
 		for {
 			entry, ok := q.Take(ctx)
 			if !ok {
+				close(out)
 				return
 			}
 			out <- entry
