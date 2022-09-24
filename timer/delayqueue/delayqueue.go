@@ -54,8 +54,8 @@ func (q *DelayQueue[T]) Push(value T, delay time.Duration) {
 // 或者ctx被关闭
 func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 	for {
+		var expired *time.Timer
 		q.mutex.Lock()
-		var expired <-chan time.Time
 		// 有元素
 		if !q.h.Empty() {
 			// 获取元素
@@ -65,8 +65,8 @@ func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 				q.mutex.Unlock()
 				return entry.Value, true
 			}
-			// 到期时间
-			expired = time.After(time.Until(entry.Expired))
+			// 到期时间，使用time.NewTimer()才能搞调用Stop()，从而释放定时器
+			expired = time.NewTimer(time.Until(entry.Expired))
 		}
 		// 避免被之前的元素假唤醒
 		select {
@@ -75,15 +75,24 @@ func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 		}
 		q.mutex.Unlock()
 
-		select {
-		// 新的更快到期元素
-		case <-q.wakeup:
-			// 首元素到期
-		case <-expired:
-			// 被关闭
-		case <-ctx.Done():
-			var t T
-			return t, false
+		// 不为空，需要同时等待元素到期
+		if expired != nil {
+			select {
+			case <-q.wakeup: // 新的更快到期元素
+				expired.Stop()
+			case <-expired.C: // 首元素到期
+			case <-ctx.Done(): // 被关闭
+				expired.Stop()
+				var t T
+				return t, false
+			}
+		} else {
+			select {
+			case <-q.wakeup: // 新的更快到期元素
+			case <-ctx.Done(): // 被关闭
+				var t T
+				return t, false
+			}
 		}
 	}
 }
