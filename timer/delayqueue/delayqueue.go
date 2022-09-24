@@ -75,7 +75,7 @@ func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 		}
 		q.mutex.Unlock()
 
-		// 不为空，需要同时等待元素到期
+		// 不为空，需要同时等待元素到期，并且除非expired到期，否则都需要关闭expired避免泄露
 		if expired != nil {
 			select {
 			case <-q.wakeup: // 新的更快到期元素
