@@ -65,7 +65,7 @@ func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 				q.mutex.Unlock()
 				return entry.value, true
 			}
-			// 到期时间，使用time.NewTimer()才能搞调用Stop()，从而释放定时器
+			// 到期时间，使用time.NewTimer()才能够调用Stop()，从而释放定时器
 			expired = time.NewTimer(time.Until(entry.expired))
 		}
 		// 避免被之前的元素假唤醒
