@@ -157,7 +157,7 @@ func (c *Cache[K, V]) Clear(needOnEvict bool) {
 
 	// 清空
 	c.entries = make(map[K]*list.Element[*cache.Entry[K, V]])
-	c.evictList.Init()
+	c.evictList.Clear()
 }
 
 // 改变容量
