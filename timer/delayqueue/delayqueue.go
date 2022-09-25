@@ -9,8 +9,8 @@ import (
 )
 
 type entry[T any] struct {
-	value   T
-	expired time.Time // 到期时间
+	value      T
+	expiration time.Time // 到期时间
 }
 
 // 延迟队列
@@ -24,7 +24,7 @@ type DelayQueue[T any] struct {
 func New[T any]() *DelayQueue[T] {
 	return &DelayQueue[T]{
 		h: heap.New(nil, func(e1, e2 *entry[T]) bool {
-			return e1.expired.Before(e2.expired)
+			return e1.expiration.Before(e2.expiration)
 		}),
 		wakeup: make(chan struct{}, 1),
 	}
@@ -35,8 +35,8 @@ func (q *DelayQueue[T]) Push(value T, delay time.Duration) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	entry := &entry[T]{
-		value:   value,
-		expired: time.Now().Add(delay),
+		value:      value,
+		expiration: time.Now().Add(delay),
 	}
 	q.h.Push(entry)
 	// 唤醒等待的协程
@@ -54,19 +54,19 @@ func (q *DelayQueue[T]) Push(value T, delay time.Duration) {
 // 或者ctx被关闭
 func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 	for {
-		var expired *time.Timer
+		var expiration *time.Timer
 		q.mutex.Lock()
 		// 有元素
 		if !q.h.Empty() {
 			// 获取元素
 			entry := q.h.Peek()
-			if time.Now().After(entry.expired) {
+			if time.Now().After(entry.expiration) {
 				q.h.Pop()
 				q.mutex.Unlock()
 				return entry.value, true
 			}
 			// 到期时间，使用time.NewTimer()才能够调用Stop()，从而释放定时器
-			expired = time.NewTimer(time.Until(entry.expired))
+			expiration = time.NewTimer(time.Until(entry.expiration))
 		}
 		// 避免被之前的元素假唤醒
 		select {
@@ -75,14 +75,14 @@ func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 		}
 		q.mutex.Unlock()
 
-		// 不为空，需要同时等待元素到期，并且除非expired到期，否则都需要关闭expired避免泄露
-		if expired != nil {
+		// 不为空，需要同时等待元素到期，并且除非expiration到期，否则都需要关闭expiration避免泄露
+		if expiration != nil {
 			select {
 			case <-q.wakeup: // 新的更快到期元素
-				expired.Stop()
-			case <-expired.C: // 首元素到期
+				expiration.Stop()
+			case <-expiration.C: // 首元素到期
 			case <-ctx.Done(): // 被关闭
-				expired.Stop()
+				expiration.Stop()
 				var t T
 				return t, false
 			}
@@ -136,7 +136,7 @@ func (q *DelayQueue[T]) Pop() (T, bool) {
 	}
 	entry := q.h.Peek()
 	// 还没元素到期
-	if time.Now().Before(entry.expired) {
+	if time.Now().Before(entry.expiration) {
 		var t T
 		return t, false
 	}
