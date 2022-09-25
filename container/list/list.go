@@ -50,8 +50,8 @@ type List[T any] struct {
 	len  int        // current list length excluding (this) sentinel element
 }
 
-// Init initializes or clears list l.
-func (l *List[T]) Init() *List[T] {
+// Clear clears list l.
+func (l *List[T]) Clear() *List[T] {
 	l.root.next = &l.root
 	l.root.prev = &l.root
 	l.len = 0
@@ -59,7 +59,7 @@ func (l *List[T]) Init() *List[T] {
 }
 
 // New returns an initialized list.
-func New[T any]() *List[T] { return new(List[T]).Init() }
+func New[T any]() *List[T] { return new(List[T]).Clear() }
 
 // Len returns the number of elements of list l.
 // The complexity is O(1).
@@ -79,13 +79,6 @@ func (l *List[T]) Back() *Element[T] {
 		return nil
 	}
 	return l.root.prev
-}
-
-// lazyInit lazily initializes a zero List value.
-func (l *List[T]) lazyInit() {
-	if l.root.next == nil {
-		l.Init()
-	}
 }
 
 // insert inserts e after at, increments l.len, and returns e.
@@ -152,13 +145,11 @@ func (l *List[T]) RemoveBack() T {
 
 // PushFront inserts a new element e with value v at the front of list l and returns e.
 func (l *List[T]) PushFront(v T) *Element[T] {
-	l.lazyInit()
 	return l.insertValue(v, &l.root)
 }
 
 // PushBack inserts a new element e with value v at the back of list l and returns e.
 func (l *List[T]) PushBack(v T) *Element[T] {
-	l.lazyInit()
 	return l.insertValue(v, l.root.prev)
 }
 
@@ -229,7 +220,6 @@ func (l *List[T]) MoveAfter(e, mark *Element[T]) {
 // PushBackList inserts a copy of another list at the back of list l.
 // The lists l and other may be the same. They must not be nil.
 func (l *List[T]) PushBackList(other *List[T]) {
-	l.lazyInit()
 	for i, e := other.Len(), other.Front(); i > 0; i, e = i-1, e.Next() {
 		l.insertValue(e.Value, l.root.prev)
 	}
@@ -238,7 +228,6 @@ func (l *List[T]) PushBackList(other *List[T]) {
 // PushFrontList inserts a copy of another list at the front of list l.
 // The lists l and other may be the same. They must not be nil.
 func (l *List[T]) PushFrontList(other *List[T]) {
-	l.lazyInit()
 	for i, e := other.Len(), other.Back(); i > 0; i, e = i-1, e.Prev() {
 		l.insertValue(e.Value, &l.root)
 	}
