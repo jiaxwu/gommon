@@ -15,11 +15,16 @@ type entry[T any] struct {
 }
 
 // 延迟队列
+// 参考https://github.com/RussellLuo/timingwheel/blob/master/delayqueue/delayqueue.go
 type DelayQueue[T any] struct {
-	h        *heap.Heap[*entry[T]]
-	mutex    sync.Mutex    // 保证并发安全
-	sleeping int32         // 用于Push()和Take()之间通知是否有需要唤醒
-	wakeup   chan struct{} // 唤醒通道
+	h *heap.Heap[*entry[T]]
+	// // 保证并发安全
+	mutex sync.Mutex
+	// 表示Take()是否正在等待队列不为空或更早到期的元素
+	// 0表示Take()没在等待，1表示Take()在等待
+	sleeping int32
+	// 唤醒通道
+	wakeup chan struct{}
 }
 
 // 创建延迟队列
@@ -41,10 +46,11 @@ func (q *DelayQueue[T]) Push(value T, delay time.Duration) {
 		expiration: time.Now().Add(delay),
 	}
 	q.h.Push(entry)
-	// 唤醒等待的协程
+	// 唤醒等待的Take()
 	// 这里表示新添加的元素到期时间是最早的，或者原来队列为空
-	// 因此必须唤醒等待的协程，因为可以拿到更早到期的元素
+	// 因此必须唤醒等待的Take()，因为可以拿到更早到期的元素
 	if q.h.Peek() == entry {
+		// 把sleeping从1修改成0，也就是唤醒等待的Take()
 		if atomic.CompareAndSwapInt32(&q.sleeping, 1, 0) {
 			q.wakeup <- struct{}{}
 		}
@@ -70,7 +76,7 @@ func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 			// 到期时间，使用time.NewTimer()才能够调用Stop()，从而释放定时器
 			timer = time.NewTimer(entry.expiration.Sub(now))
 		}
-		// 走到这里表示需要等待了，则需要告诉Push()在有新元素时要通知
+		// 走到这里表示需要等待了，设置为1告诉Push()在有新元素时要通知
 		atomic.StoreInt32(&q.sleeping, 1)
 		q.mutex.Unlock()
 
@@ -80,6 +86,7 @@ func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 			case <-q.wakeup: // 新的更快到期元素
 				timer.Stop()
 			case <-timer.C: // 首元素到期
+				// 设置为0，如果原来也为0表示有Push()正在q.wakeup被阻塞
 				if atomic.SwapInt32(&q.sleeping, 0) == 0 {
 					// 避免Push()的协程被阻塞
 					<-q.wakeup
