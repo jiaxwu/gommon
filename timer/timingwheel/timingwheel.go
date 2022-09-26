@@ -12,6 +12,7 @@ const delayQueueBufferSize = 10 // 延迟队列缓冲区大小
 // 时间轮
 // 单位都是毫秒
 // 基于https://github.com/RussellLuo/timingwheel的实现
+// 性能不如标准的time.AfterFunc()，只是作为学习时间轮
 type TimingWheel struct {
 	tick          int64          // 每一跳的时间
 	wheelSize     int64          // 时间轮
