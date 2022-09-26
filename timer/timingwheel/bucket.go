@@ -11,25 +11,25 @@ import (
 // 返回给用户的定时器
 type Timer struct {
 	expiration int64                 // 到期时间
-	f          func()                // 任务
-	bucket     unsafe.Pointer        // 所属时间轮的桶
+	task       func()                // 任务
+	b          unsafe.Pointer        // 所属时间轮的桶
 	elem       *list.Element[*Timer] // 为了能从链表中删除
-}
-
-func (t *Timer) getBucket() *bucket {
-	return (*bucket)(atomic.LoadPointer(&t.bucket))
-}
-
-func (t *Timer) setBucket(b *bucket) {
-	atomic.StorePointer(&t.bucket, unsafe.Pointer(b))
 }
 
 func (t *Timer) Stop() bool {
 	stoped := false
 	for b := t.getBucket(); b != nil; b = t.getBucket() {
-		stoped = b.remove(t)
+		stoped = b.removeMutex(t)
 	}
 	return stoped
+}
+
+func (t *Timer) getBucket() *bucket {
+	return (*bucket)(atomic.LoadPointer(&t.b))
+}
+
+func (t *Timer) setBucket(b *bucket) {
+	atomic.StorePointer(&t.b, unsafe.Pointer(b))
 }
 
 // 时间轮上的一个桶
@@ -43,7 +43,8 @@ type bucket struct {
 // 创建定时器
 func newBucket() *bucket {
 	return &bucket{
-		timers: list.New[*Timer](),
+		expiration: -1,
+		timers:     list.New[*Timer](),
 	}
 }
 
@@ -59,28 +60,45 @@ func (b *bucket) add(t *Timer) {
 }
 
 // 移除定时器
-func (b *bucket) remove(t *Timer) bool {
+func (b *bucket) removeMutex(t *Timer) bool {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
+	return b.remove(t)
+}
+
+func (b *bucket) remove(t *Timer) bool {
 	if t.getBucket() != b {
 		return false
 	}
 	b.timers.Remove(t.elem)
-	t.elem = nil
 	t.setBucket(nil)
+	t.elem = nil
 	return true
 }
 
-// 循环处理定时器列表
-// f可以是执行定时器或者添加到上一级时间轮
-func (b *bucket) flush(f func(t *Timer)) {
+// 添加到上一级定时器或执行任务
+func (b *bucket) flush(addOrRun func(t *Timer)) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	for elem := b.timers.Front(); elem != nil; elem = elem.Next() {
+
+	for elem := b.timers.Front(); elem != nil; {
+		next := elem.Next()
 		t := elem.Value
-		t.bucket = nil
-		t.elem = nil
-		f(t)
+		b.remove(t)
+		addOrRun(t)
+		elem = next
 	}
-	b.timers.Clear()
+
+	// 设置过期时间表示没有加入到延迟队列
+	b.setExpiration(-1)
+}
+
+func (b *bucket) getExpiration() int64 {
+	return atomic.LoadInt64(&b.expiration)
+}
+
+// 返回true表示设置成功
+// 否则表示没变化
+func (b *bucket) setExpiration(expiration int64) bool {
+	return atomic.SwapInt64(&b.expiration, expiration) != expiration
 }
