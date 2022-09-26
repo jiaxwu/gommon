@@ -44,7 +44,7 @@ func newTimingWheel(tick, wheelSize, currentTime int64, queue *delayQueue) *Timi
 
 // 运行时间轮
 func (tw *TimingWheel) Run(ctx context.Context) {
-	bucketChan := tw.queue.channel(ctx, 0, func() int64 {
+	bucketChan := tw.queue.channel(ctx, delayQueueBufferSize, func() int64 {
 		return time.Now().UnixMilli()
 	})
 	for {
@@ -68,6 +68,35 @@ func (tw *TimingWheel) AfterFunc(delay time.Duration, f func()) *Timer {
 	}
 	tw.add(t)
 	return t
+}
+
+type Scheduler interface {
+	// 表示下一个执行任务的时间
+	// 如果time.IsZero()==true则不再进行
+	Next(time.Time) time.Time
+}
+
+func (tw *TimingWheel) ScheduleFunc(s Scheduler, f func()) (t *Timer) {
+	expiration := s.Next(time.Now())
+	if expiration.IsZero() {
+		return
+	}
+
+	t = &Timer{
+		expiration: expiration.UnixMilli(),
+		task: func() {
+			// 添加下一次执行任务
+			expiration := s.Next(time.UnixMilli(t.expiration))
+			if !expiration.IsZero() {
+				t.expiration = expiration.UnixMilli()
+				tw.addOrRun(t)
+			}
+			// 执行任务
+			f()
+		},
+	}
+	tw.addOrRun(t)
+	return
 }
 
 // 添加定时器
