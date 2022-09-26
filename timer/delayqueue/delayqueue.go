@@ -3,6 +3,7 @@ package delayqueue
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jiaxwu/gommon/container/heap"
@@ -15,9 +16,10 @@ type entry[T any] struct {
 
 // 延迟队列
 type DelayQueue[T any] struct {
-	h      *heap.Heap[*entry[T]]
-	mutex  sync.Mutex    // 保证并发安全
-	wakeup chan struct{} // 唤醒通道
+	h        *heap.Heap[*entry[T]]
+	mutex    sync.Mutex    // 保证并发安全
+	sleeping int32         // 用于Push()和Take()之间通知是否有需要唤醒
+	wakeup   chan struct{} // 唤醒通道
 }
 
 // 创建延迟队列
@@ -26,7 +28,7 @@ func New[T any]() *DelayQueue[T] {
 		h: heap.New(nil, func(e1, e2 *entry[T]) bool {
 			return e1.expiration.Before(e2.expiration)
 		}),
-		wakeup: make(chan struct{}, 1),
+		wakeup: make(chan struct{}),
 	}
 }
 
@@ -43,9 +45,8 @@ func (q *DelayQueue[T]) Push(value T, delay time.Duration) {
 	// 这里表示新添加的元素到期时间是最早的，或者原来队列为空
 	// 因此必须唤醒等待的协程，因为可以拿到更早到期的元素
 	if q.h.Peek() == entry {
-		select {
-		case q.wakeup <- struct{}{}:
-		default:
+		if atomic.CompareAndSwapInt32(&q.sleeping, 1, 0) {
+			q.wakeup <- struct{}{}
 		}
 	}
 }
@@ -54,35 +55,37 @@ func (q *DelayQueue[T]) Push(value T, delay time.Duration) {
 // 或者ctx被关闭
 func (q *DelayQueue[T]) Take(ctx context.Context) (T, bool) {
 	for {
-		var expiration *time.Timer
+		var timer *time.Timer
 		q.mutex.Lock()
 		// 有元素
 		if !q.h.Empty() {
 			// 获取元素
 			entry := q.h.Peek()
-			if time.Now().After(entry.expiration) {
+			now := time.Now()
+			if now.After(entry.expiration) {
 				q.h.Pop()
 				q.mutex.Unlock()
 				return entry.value, true
 			}
 			// 到期时间，使用time.NewTimer()才能够调用Stop()，从而释放定时器
-			expiration = time.NewTimer(time.Until(entry.expiration))
+			timer = time.NewTimer(entry.expiration.Sub(now))
 		}
-		// 避免被之前的元素假唤醒
-		select {
-		case <-q.wakeup:
-		default:
-		}
+		// 走到这里表示需要等待了，则需要告诉Push()在有新元素时要通知
+		atomic.StoreInt32(&q.sleeping, 1)
 		q.mutex.Unlock()
 
-		// 不为空，需要同时等待元素到期，并且除非expiration到期，否则都需要关闭expiration避免泄露
-		if expiration != nil {
+		// 不为空，需要同时等待元素到期，并且除非timer到期，否则都需要关闭timer避免泄露
+		if timer != nil {
 			select {
 			case <-q.wakeup: // 新的更快到期元素
-				expiration.Stop()
-			case <-expiration.C: // 首元素到期
+				timer.Stop()
+			case <-timer.C: // 首元素到期
+				if atomic.SwapInt32(&q.sleeping, 0) == 0 {
+					// 避免Push()的协程被阻塞
+					<-q.wakeup
+				}
 			case <-ctx.Done(): // 被关闭
-				expiration.Stop()
+				timer.Stop()
 				var t T
 				return t, false
 			}

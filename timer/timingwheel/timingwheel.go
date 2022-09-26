@@ -7,11 +7,7 @@ import (
 	"unsafe"
 )
 
-const (
-	tick                 = 1  // 每一跳时间
-	wheelSize            = 20 // 跳数
-	delayQueueBufferSize = 10 // 延迟队列缓冲区大小
-)
+const delayQueueBufferSize = 10 // 延迟队列缓冲区大小
 
 // 时间轮
 // 单位都是毫秒
@@ -26,11 +22,12 @@ type TimingWheel struct {
 	overflowWheel unsafe.Pointer // 上一个时间轮
 }
 
-func New() *TimingWheel {
-	return newTimingWheel(tick, time.Now().UnixMilli(), newDelayQueue())
+// tick的单位是毫秒
+func New(tick, wheelSize int64) *TimingWheel {
+	return newTimingWheel(tick, wheelSize, time.Now().UnixMilli(), newDelayQueue())
 }
 
-func newTimingWheel(tick, currentTime int64, queue *delayQueue) *TimingWheel {
+func newTimingWheel(tick, wheelSize, currentTime int64, queue *delayQueue) *TimingWheel {
 	tw := &TimingWheel{
 		tick:        tick,
 		wheelSize:   wheelSize,
@@ -39,7 +36,7 @@ func newTimingWheel(tick, currentTime int64, queue *delayQueue) *TimingWheel {
 		buckets:     make([]*bucket, wheelSize),
 		queue:       queue,
 	}
-	for i := 0; i < wheelSize; i++ {
+	for i := 0; i < int(wheelSize); i++ {
 		tw.buckets[i] = newBucket()
 	}
 	return tw
@@ -123,7 +120,7 @@ func (tw *TimingWheel) advance(expiration int64) {
 }
 
 func (tw *TimingWheel) setOverflowWheel(currentTime int64) {
-	overflowWheel := newTimingWheel(tw.interval, currentTime, tw.queue)
+	overflowWheel := newTimingWheel(tw.interval, tw.wheelSize, currentTime, tw.queue)
 	atomic.CompareAndSwapPointer(&tw.overflowWheel, nil, unsafe.Pointer(overflowWheel))
 }
 

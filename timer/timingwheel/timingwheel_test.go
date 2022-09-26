@@ -1,49 +1,13 @@
-package timingwheel_test
+package timingwheel
 
 import (
 	"context"
 	"testing"
 	"time"
-
-	"github.com/RussellLuo/timingwheel"
-	my "github.com/jiaxwu/gommon/timer/timingwheel"
 )
 
 func genD(i int) time.Duration {
 	return time.Duration(i%10000) * time.Millisecond
-}
-
-func BenchmarkTimingWheel_StartStop(b *testing.B) {
-	tw := timingwheel.NewTimingWheel(time.Millisecond, 20)
-	tw.Start()
-	defer tw.Stop()
-
-	cases := []struct {
-		name string
-		N    int // the data size (i.e. number of existing timers)
-	}{
-		{"N-1m", 1000000},
-		// {"N-5m", 5000000},
-		// {"N-10m", 10000000},
-	}
-	for _, c := range cases {
-		b.Run(c.name, func(b *testing.B) {
-			base := make([]*timingwheel.Timer, c.N)
-			for i := 0; i < len(base); i++ {
-				base[i] = tw.AfterFunc(genD(i), func() {})
-			}
-			b.ResetTimer()
-
-			for i := 0; i < b.N; i++ {
-				tw.AfterFunc(time.Second, func() {}).Stop()
-			}
-
-			b.StopTimer()
-			for i := 0; i < len(base); i++ {
-				base[i].Stop()
-			}
-		})
-	}
 }
 
 func BenchmarkStandardTimer_StartStop(b *testing.B) {
@@ -75,8 +39,8 @@ func BenchmarkStandardTimer_StartStop(b *testing.B) {
 	}
 }
 
-func BenchmarkMyTimingWheel(b *testing.B) {
-	tw := my.New()
+func BenchmarkTimingWheel(b *testing.B) {
+	tw := New(1, 20)
 	go func() {
 		tw.Run(context.Background())
 	}()
@@ -91,7 +55,7 @@ func BenchmarkMyTimingWheel(b *testing.B) {
 	}
 	for _, c := range cases {
 		b.Run(c.name, func(b *testing.B) {
-			base := make([]*my.Timer, c.N)
+			base := make([]*Timer, c.N)
 			for i := 0; i < len(base); i++ {
 				base[i] = tw.AfterFunc(genD(i), func() {})
 			}

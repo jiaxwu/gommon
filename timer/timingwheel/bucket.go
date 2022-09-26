@@ -19,7 +19,7 @@ type Timer struct {
 func (t *Timer) Stop() bool {
 	stoped := false
 	for b := t.getBucket(); b != nil; b = t.getBucket() {
-		stoped = b.removeMutex(t)
+		stoped = b.remove(t)
 	}
 	return stoped
 }
@@ -60,13 +60,9 @@ func (b *bucket) add(t *Timer) {
 }
 
 // 移除定时器
-func (b *bucket) removeMutex(t *Timer) bool {
+func (b *bucket) remove(t *Timer) bool {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	return b.remove(t)
-}
-
-func (b *bucket) remove(t *Timer) bool {
 	if t.getBucket() != b {
 		return false
 	}
@@ -84,13 +80,17 @@ func (b *bucket) flush(addOrRun func(t *Timer)) {
 	for elem := b.timers.Front(); elem != nil; {
 		next := elem.Next()
 		t := elem.Value
-		b.remove(t)
+		if t.getBucket() == b {
+			t.setBucket(nil)
+			t.elem = nil
+		}
 		addOrRun(t)
 		elem = next
 	}
 
 	// 设置过期时间表示没有加入到延迟队列
 	b.setExpiration(-1)
+	b.timers.Clear()
 }
 
 func (b *bucket) getExpiration() int64 {
