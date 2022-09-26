@@ -124,7 +124,7 @@ func (tw *TimingWheel) setOverflowWheel(currentTime int64) {
 	atomic.CompareAndSwapPointer(&tw.overflowWheel, nil, unsafe.Pointer(overflowWheel))
 }
 
-// 去除不满整一跳的时间
+// 去除不满一整跳的时间
 func truncate(time, tick int64) int64 {
 	return time - time%tick
 }
