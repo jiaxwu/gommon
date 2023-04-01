@@ -47,6 +47,9 @@
 # pool 
 对`sync.Pool`的泛型改造，`channel+select`实现的固定长度pool，分级对象池，以及`[]byte`和`bytes.Buffer`的字节对象池
 
+# pselect
+带优先级的`select`，能够先执行某个`channel`里面的内容
+
 # slices
 泛型slice工具
 
