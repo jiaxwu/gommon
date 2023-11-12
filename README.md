@@ -41,7 +41,7 @@ Various mathematical utilities.
 Fast generic memset() operation.
 
 # pool
-Generic sync.Pool, fixed-length pool implemented using channel+select, and bytes pool for []byte and bytes.Buffer.
+Generic sync.Pool, fixed-length pool implemented using channel+select, and byte pool for []byte, leveled and bytes.Buffer.
 
 # pselect
 select with priorities, allowing execution of content from a specific channel first.
