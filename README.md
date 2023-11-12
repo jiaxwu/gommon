@@ -1,64 +1,56 @@
 # gommon
-一些平时项目中使用到的库。
-
-欢迎issues，pr！
-
-注：仓库代码测试用例比较简单，如需生产环境使用请充分测试。
+A collection of common Golang libraries.
 
 # cache
-泛型LRU、LFU、FIFO、ARC、Random、NearlyLRU算法
+Generic LRU, LFU, FIFO, ARC, Random, NearlyLRU algorithms.
 
 # cmd
-命令执行
+Command execution.
 
 # consistenthash
-一致性哈希，参考groupcache的实现，进行了一点点修改
+Consistent hashing implementation inspired by groupcache with slight modifications.
 
 # container
-泛型容器
+Generic containers.
 
-# conv 
-类型转换
+# conv
+Type conversions.
 
 # counter
-计数器
+Counter.
 
 # crypto
-加密算法
+Encryption algorithms.
 
 # env
-获取环境变量的工具
+Retrieving environment variables.
 
 # filter
-过滤器，比如布隆过滤器
+Filters, such as Bloom filters.
 
 # hash
-泛型哈希函数
+Generic hash functions.
 
 # limiter
-限流器
+Rate limiters.
 
 # math
-一些数值工具
+Various mathematical utilities.
 
 # mem
-快速的泛型memset()操作
+Fast generic memset() operation.
 
-# pool 
-对`sync.Pool`的泛型改造，`channel+select`实现的固定长度pool，分级对象池，以及`[]byte`和`bytes.Buffer`的字节对象池
+# pool
+Generic sync.Pool, fixed-length pool implemented using channel+select, and bytes pool for []byte and bytes.Buffer.
 
 # pselect
-带优先级的`select`，能够先执行某个`channel`里面的内容
+select with priorities, allowing execution of content from a specific channel first.
 
 # slices
-泛型slice工具
+Generic slice utilities.
 
 # timer
-定时器，比如泛型延迟队列、时间轮
+Generic delay queues and time wheels.
 
 # validate
-基于函数的参数校验，包含数值、字符串和slice类型校验函数
-
-
-
-
+Function-based parameter validation, including validation functions for numeric values, strings, and slices.
