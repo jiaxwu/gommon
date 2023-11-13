@@ -44,7 +44,10 @@ Fast generic memset() operation.
 Generic sync.Pool, fixed-length pool implemented using channel+select, and byte pool for []byte, leveled and bytes.Buffer.
 
 # pselect
-select with priorities, allowing execution of content from a specific channel first.
+Select with priorities, allowing execution of content from a specific channel first.
+
+# randoms
+Weighted random select.
 
 # slices
 Generic slice utilities.
